@@ -5,6 +5,31 @@
 
 
 
+## [4.11.0] - 2026-02-23
+
+### <!-- 0 -->🚀 Features
+- Collect debug info by pid by @GuillaumeLagrange in [#240](https://github.com/CodSpeedHQ/runner/pull/240)
+- Skip tests requiring sudo if `GITHUB_ACTIONS` is not set by @GuillaumeLagrange
+- Deduplicate symbol maps, unwind_data and debug info by @GuillaumeLagrange
+- Use bench_pids filters when harvesting symbols from perf file by @GuillaumeLagrange
+- Add new fields to perf metadata by @GuillaumeLagrange in [#246](https://github.com/CodSpeedHQ/runner/pull/246)
+- Always try to attach to libc-compatible API by @not-matthias
+- Support tcmalloc by @not-matthias
+- Support more standard allocation APIs by @not-matthias
+- Add tracegrind support as an alternative simulation tool by @art049 in [#236](https://github.com/CodSpeedHQ/runner/pull/236)
+
+### <!-- 1 -->🐛 Bug Fixes
+- Re-add perf map colection removed by mistake by @GuillaumeLagrange in [#251](https://github.com/CodSpeedHQ/runner/pull/251)
+
+### <!-- 2 -->🏗️ Refactor
+- Use common lib paths for all allocators by @not-matthias
+
+### <!-- 7 -->⚙️ Internals
+- Bump exec-harness version
+- Remove outdated allocator check by @not-matthias in [#241](https://github.com/CodSpeedHQ/runner/pull/241)
+- Add tcmalloc test by @not-matthias
+
+
 ## [4.10.6] - 2026-02-09
 
 ### <!-- 0 -->🚀 Features
@@ -26,7 +51,7 @@
 - Move common perf-map utility outside of valgrind helpers by @GuillaumeLagrange
 
 ### <!-- 7 -->⚙️ Internals
-- Bump memtrack version
+- Bump memtrack version by @adriencaccia
 - Add debug logs for harvested bench pids by @GuillaumeLagrange
 - Update wording in build.rs by @GuillaumeLagrange in [#235](https://github.com/CodSpeedHQ/runner/pull/235)
 - Use tokio::fs when harvesting perf maps from pids by @GuillaumeLagrange
@@ -946,6 +971,7 @@
 - Add linting components to the toolchain by @art049
 
 
+[4.11.0]: https://github.com/CodSpeedHQ/runner/compare/v4.10.6..v4.11.0
 [4.10.6]: https://github.com/CodSpeedHQ/runner/compare/v4.10.5..v4.10.6
 [4.10.5]: https://github.com/CodSpeedHQ/runner/compare/v4.10.4..v4.10.5
 [4.10.4]: https://github.com/CodSpeedHQ/runner/compare/v4.10.3..v4.10.4
