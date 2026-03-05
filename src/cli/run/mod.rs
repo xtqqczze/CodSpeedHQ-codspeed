@@ -8,12 +8,12 @@ use crate::project_config::ProjectConfig;
 use crate::project_config::merger::ConfigMerger;
 use crate::run_environment::interfaces::RepositoryProvider;
 use crate::upload::UploadResult;
+use crate::upload::poll_results::{PollResultsOptions, poll_results};
 use clap::{Args, ValueEnum};
 use std::path::Path;
 
 pub mod helpers;
 pub mod logger;
-mod poll_results;
 
 #[derive(Args, Debug)]
 pub struct RunArgs {
@@ -155,8 +155,9 @@ pub async fn run(
             // Execute benchmarks
             let executor = executor::get_executor_from_mode(&execution_context.config.mode);
 
+            let poll_opts = PollResultsOptions::for_run(output_json);
             let poll_results_fn = async |upload_result: &UploadResult| {
-                poll_results::poll_results(api_client, upload_result, output_json).await
+                poll_results(api_client, upload_result, &poll_opts).await
             };
             executor::execute_benchmarks(
                 executor.as_ref(),

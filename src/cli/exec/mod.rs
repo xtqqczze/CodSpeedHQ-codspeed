@@ -7,11 +7,11 @@ use crate::prelude::*;
 use crate::project_config::ProjectConfig;
 use crate::project_config::merger::ConfigMerger;
 use crate::upload::UploadResult;
+use crate::upload::poll_results::{PollResultsOptions, poll_results};
 use clap::Args;
 use std::path::Path;
 
 pub mod multi_targets;
-mod poll_results;
 
 /// We temporarily force this name for all exec runs
 pub const DEFAULT_REPOSITORY_NAME: &str = "local-runs";
@@ -120,8 +120,9 @@ pub async fn execute_with_harness(
     )
     .await?;
 
+    let poll_opts = PollResultsOptions::for_exec();
     let poll_results_fn = async |upload_result: &UploadResult| {
-        poll_results::poll_results(api_client, upload_result).await
+        poll_results(api_client, upload_result, &poll_opts).await
     };
 
     executor::execute_benchmarks(
