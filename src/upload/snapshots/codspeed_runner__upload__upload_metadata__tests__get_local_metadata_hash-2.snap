@@ -1,0 +1,49 @@
+---
+source: src/upload/upload_metadata.rs
+expression: upload_metadata
+---
+{
+  "repositoryProvider": "PROJECT",
+  "version": 9,
+  "tokenless": false,
+  "profileMd5": "tfC4VxYiYdJcTWpHpv4Ouw==",
+  "profileEncoding": "gzip",
+  "runner": {
+    "name": "codspeed-runner",
+    "version": "4.11.1",
+    "instruments": [],
+    "executor": "valgrind",
+    "os": "nixos",
+    "osVersion": "25.11",
+    "arch": "x86_64",
+    "host": "badlands",
+    "user": "guillaume",
+    "cpuBrand": "11th Gen Intel(R) Core(TM) i5-11400H @ 2.70GHz",
+    "cpuName": "cpu0",
+    "cpuVendorId": "GenuineIntel",
+    "cpuCores": 6,
+    "totalMemoryGb": 16
+  },
+  "runEnvironment": "LOCAL",
+  "runPart": {
+    "runId": "e0878123-c467-4191-994b-8560d8a7424e",
+    "runPartId": "valgrind",
+    "jobName": "local-job",
+    "metadata": {}
+  },
+  "commitHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "allowEmpty": false,
+  "ref": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "headRef": null,
+  "baseRef": null,
+  "owner": "GuillaumeLagrange",
+  "repository": "local-runs",
+  "event": "local",
+  "sender": null,
+  "ghData": null,
+  "glData": null,
+  "localData": {
+    "expectedRunPartsCount": 1
+  },
+  "repositoryRootPath": "/home/guillaume/codspeed/runner/"
+}

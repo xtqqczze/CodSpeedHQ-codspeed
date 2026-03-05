@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use git2::Repository;
 use simplelog::SharedLogger;
+use uuid::Uuid;
 
 use crate::api_client::{CodSpeedAPIClient, GetOrCreateProjectRepositoryVars, GetRepositoryVars};
 use crate::cli::run::helpers::{GitRemote, find_repository_root, parse_git_remote};
@@ -8,7 +9,9 @@ use crate::executor::config::RepositoryOverride;
 use crate::executor::{Config, ExecutorName};
 use crate::local_logger::get_local_logger;
 use crate::prelude::*;
-use crate::run_environment::interfaces::{RepositoryProvider, RunEnvironmentMetadata, RunEvent};
+use crate::run_environment::interfaces::{
+    LocalData, RepositoryProvider, RunEnvironmentMetadata, RunEvent,
+};
 use crate::run_environment::provider::{RunEnvironmentDetector, RunEnvironmentProvider};
 use crate::run_environment::{RunEnvironment, RunPart};
 use crate::system::SystemInfo;
@@ -25,6 +28,8 @@ pub struct LocalProvider {
     head_ref: Option<String>,
     pub event: RunEvent,
     pub repository_root_path: String,
+    run_id: String,
+    expected_run_parts_count: u32,
 }
 
 /// Information about the git repository root path
@@ -62,6 +67,8 @@ impl LocalProvider {
             head_ref: resolved.head_ref,
             repository_root_path,
             event: RunEvent::Local,
+            run_id: Uuid::new_v4().to_string(),
+            expected_run_parts_count: 1,
         })
     }
 
@@ -237,6 +244,7 @@ impl RunEnvironmentProvider for LocalProvider {
             event: self.event.clone(),
             gh_data: None,
             gl_data: None,
+            local_data: None,
             sender: None,
             owner: self.owner.clone(),
             repository: self.repository.clone(),
@@ -252,7 +260,18 @@ impl RunEnvironmentProvider for LocalProvider {
         profile_archive: &ProfileArchive,
         executor_name: ExecutorName,
     ) -> Result<UploadMetadata> {
-        let run_environment_metadata = self.get_run_environment_metadata()?;
+        let mut run_environment_metadata = self.get_run_environment_metadata()?;
+
+        run_environment_metadata.local_data = Some(LocalData {
+            expected_run_parts_count: self.expected_run_parts_count,
+        });
+
+        let run_part = Some(RunPart {
+            run_id: self.run_id.clone(),
+            run_part_id: executor_name.to_string(),
+            job_name: "local-job".into(),
+            metadata: Default::default(),
+        });
 
         Ok(UploadMetadata {
             version: Some(LATEST_UPLOAD_METADATA_VERSION),
@@ -271,11 +290,10 @@ impl RunEnvironmentProvider for LocalProvider {
                 system_info: system_info.clone(),
             },
             run_environment: self.get_run_environment(),
-            run_part: self.get_run_provider_run_part(),
+            run_part,
         })
     }
 
-    /// For local runs have, we cannot really send anything here
     fn get_run_provider_run_part(&self) -> Option<RunPart> {
         None
     }

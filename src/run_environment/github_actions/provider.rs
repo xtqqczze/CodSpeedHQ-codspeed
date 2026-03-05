@@ -179,6 +179,7 @@ impl RunEnvironmentProvider for GitHubActionsProvider {
             event: self.event.clone(),
             gh_data: Some(self.gh_data.clone()),
             gl_data: None,
+            local_data: None,
             sender: self.sender.clone(),
             owner: self.owner.clone(),
             repository: self.repository.clone(),

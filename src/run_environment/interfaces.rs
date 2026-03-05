@@ -33,6 +33,7 @@ pub struct RunEnvironmentMetadata {
     pub sender: Option<Sender>,
     pub gh_data: Option<GhData>,
     pub gl_data: Option<GlData>,
+    pub local_data: Option<LocalData>,
     pub repository_root_path: String,
 }
 
@@ -58,6 +59,12 @@ pub struct GhData {
 pub struct GlData {
     pub run_id: String,
     pub job: String,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalData {
+    pub expected_run_parts_count: u32,
 }
 
 /// Each execution of the CLI maps to a `RunPart`.

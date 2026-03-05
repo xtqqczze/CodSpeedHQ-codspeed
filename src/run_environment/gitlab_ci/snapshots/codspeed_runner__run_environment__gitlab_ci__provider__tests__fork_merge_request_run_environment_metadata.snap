@@ -18,5 +18,6 @@ expression: run_environment_metadata
     "runId": "6957110437",
     "job": "build-job"
   },
+  "localData": null,
   "repositoryRootPath": "/builds/owner/repository"
 }

@@ -4,7 +4,7 @@ expression: upload_metadata
 ---
 {
   "repositoryProvider": "GITHUB",
-  "version": 8,
+  "version": 9,
   "tokenless": true,
   "profileMd5": "jp/k05RKuqP3ERQuIIvx4Q==",
   "profileEncoding": "gzip",
@@ -53,5 +53,6 @@ expression: upload_metadata
     "job": "codspeed"
   },
   "glData": null,
+  "localData": null,
   "repositoryRootPath": "/home/runner/work/codspeed-node/codspeed-node/"
 }

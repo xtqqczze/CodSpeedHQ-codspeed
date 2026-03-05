@@ -18,5 +18,6 @@ expression: run_environment_metadata
     "job": "log-env"
   },
   "glData": null,
+  "localData": null,
   "repositoryRootPath": "/home/runner/work/adrien-python-test/adrien-python-test/"
 }

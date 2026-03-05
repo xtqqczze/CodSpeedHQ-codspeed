@@ -161,6 +161,7 @@ impl RunEnvironmentProvider for GitLabCIProvider {
             event: self.event.clone(),
             gh_data: None,
             gl_data: Some(self.gl_data.clone()),
+            local_data: None,
             sender: Some(self.sender.clone()),
             owner: self.owner.clone(),
             repository: self.repository.clone(),

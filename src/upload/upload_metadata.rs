@@ -18,8 +18,8 @@ mod tests {
     use crate::executor::ExecutorName;
     use crate::instruments::InstrumentName;
     use crate::run_environment::{
-        GhData, RepositoryProvider, RunEnvironment, RunEnvironmentMetadata, RunEvent, RunPart,
-        Sender,
+        GhData, LocalData, RepositoryProvider, RunEnvironment, RunEnvironmentMetadata, RunEvent,
+        RunPart, Sender,
     };
     use crate::system::SystemInfo;
     use crate::upload::{LATEST_UPLOAD_METADATA_VERSION, Runner, UploadMetadata};
@@ -58,6 +58,7 @@ mod tests {
                     login: "adriencaccia".into(),
                 }),
                 gl_data: None,
+                local_data: None,
                 repository_root_path: "/home/runner/work/codspeed-node/codspeed-node/".into(),
             },
             run_part: Some(RunPart {
@@ -76,7 +77,69 @@ mod tests {
             hash,
             // Caution: when changing this value, we need to ensure that
             // the related backend snapshot remains the same
-            @"11f363bd959389e57c79f6fc7d5c965d168c7b2f3cb2b566b647588b23322013"
+            @"b2c6175fa81d4c4c5eb215e2e77667891f33abca9f8614b45899e3ee070bdca6"
+        );
+        assert_json_snapshot!(upload_metadata);
+    }
+
+    #[test]
+    fn test_get_local_metadata_hash() {
+        let upload_metadata = UploadMetadata {
+            repository_provider: RepositoryProvider::Project,
+            version: Some(LATEST_UPLOAD_METADATA_VERSION),
+            tokenless: false,
+            profile_md5: "tfC4VxYiYdJcTWpHpv4Ouw==".into(),
+            profile_encoding: Some("gzip".into()),
+            runner: Runner {
+                name: "codspeed-runner".into(),
+                version: "4.11.1".into(),
+                instruments: vec![],
+                executor: ExecutorName::Valgrind,
+                system_info: SystemInfo {
+                    os: "nixos".to_string(),
+                    os_version: "25.11".to_string(),
+                    arch: "x86_64".to_string(),
+                    host: "badlands".to_string(),
+                    user: "guillaume".to_string(),
+                    cpu_brand: "11th Gen Intel(R) Core(TM) i5-11400H @ 2.70GHz".to_string(),
+                    cpu_name: "cpu0".to_string(),
+                    cpu_vendor_id: "GenuineIntel".to_string(),
+                    cpu_cores: 6,
+                    total_memory_gb: 16,
+                },
+            },
+            run_environment: RunEnvironment::Local,
+            commit_hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".into(),
+            allow_empty: false,
+            run_environment_metadata: RunEnvironmentMetadata {
+                ref_: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".into(),
+                head_ref: None,
+                base_ref: None,
+                owner: "GuillaumeLagrange".into(),
+                repository: "local-runs".into(),
+                event: RunEvent::Local,
+                gh_data: None,
+                sender: None,
+                gl_data: None,
+                local_data: Some(LocalData {
+                    expected_run_parts_count: 1,
+                }),
+                repository_root_path: "/home/guillaume/codspeed/runner/".into(),
+            },
+            run_part: Some(RunPart {
+                run_id: "e0878123-c467-4191-994b-8560d8a7424e".into(),
+                run_part_id: "valgrind".into(),
+                job_name: "local-job".into(),
+                metadata: BTreeMap::new(),
+            }),
+        };
+
+        let hash = upload_metadata.get_hash();
+        assert_snapshot!(
+            hash,
+            // Caution: when changing this value, we need to ensure that
+            // the related backend snapshot remains the same
+            @"47b6317da2747edae177d8a99143efc6f7516beb3222b9d45331ba48d4e1c369"
         );
         assert_json_snapshot!(upload_metadata);
     }
