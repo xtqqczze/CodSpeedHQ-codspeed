@@ -232,7 +232,10 @@ nest! {
     struct GetRepositoryData {
         repository_overview: Option<pub struct GetRepositoryPayload {
             pub id: String,
-        }>
+        }>,
+        user: Option<pub struct GetRepositoryUser {
+            pub id: String,
+        }>,
     }
 }
 
@@ -327,7 +330,14 @@ impl CodSpeedAPIClient {
             )
             .await;
         match response {
-            Ok(response) => Ok(response.repository_overview),
+            Ok(response) => {
+                if response.user.is_none() {
+                    bail!(
+                        "Your session has expired, please login again using `codspeed auth login`"
+                    );
+                }
+                Ok(response.repository_overview)
+            }
             Err(err) if err.contains_error_code("REPOSITORY_NOT_FOUND") => Ok(None),
             Err(err) if err.contains_error_code("UNAUTHENTICATED") => {
                 bail!("Your session has expired, please login again using `codspeed auth login`")

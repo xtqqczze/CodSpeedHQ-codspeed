@@ -104,6 +104,15 @@ impl LocalProvider {
     }
 
     /// Resolve repository information from override, git remote, or API fallback
+    ///
+    /// When there is no explicit repository override, this flow also makes sure the user is logged in with a valid token
+    /// 1. Repo found
+    ///    a. Logged in: user is set, repositoryOverview is set — repo found
+    ///    b. NOT logged in: user is null, repositoryOverview is set => bails with "session expired"
+    ///
+    /// 2. REPOSITORY_NOT_FOUND => falls through to `get_or_create_project_repository`
+    ///    a. Logged in: `get_or_create_project_repository` succeeds
+    ///    b. NOT logged in: `get_or_create_project_repository` fails, bail with "session expired"
     async fn resolve_repository(
         config: &OrchestratorConfig,
         api_client: &CodSpeedAPIClient,

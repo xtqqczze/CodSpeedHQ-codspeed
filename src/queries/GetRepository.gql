@@ -3,6 +3,9 @@ query Repository(
   $name: String!
   $provider: RepositoryProvider
 ) {
+  user {
+    id
+  }
   repositoryOverview(owner: $owner, name: $name, provider: $provider) {
     ... on Repository {
       id
