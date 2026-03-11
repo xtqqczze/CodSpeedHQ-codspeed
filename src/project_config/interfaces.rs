@@ -1,5 +1,5 @@
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 /// Project-level configuration from codspeed.yaml file
 ///
@@ -17,19 +17,28 @@ pub struct ProjectConfig {
 /// A benchmark target to execute.
 ///
 /// Either `exec` or `entrypoint` must be specified (mutually exclusive).
-#[derive(Debug, Deserialize, Serialize, PartialEq, JsonSchema)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub struct Target {
     /// Optional name for this target (display purposes only)
     pub name: Option<String>,
     /// Optional id to run a subset of targets (e.g. `codspeed run --bench my_id`)
     pub id: Option<String>,
-    /// Command measured by exec-harness (mutually exclusive with `entrypoint`)
-    pub exec: Option<String>,
-    /// Command with built-in benchmark harness (mutually exclusive with `exec`)
-    pub entrypoint: Option<String>,
+    /// The command to run
+    #[serde(flatten)]
+    pub command: TargetCommand,
     /// Target-specific options
     pub options: Option<TargetOptions>,
+}
+
+/// The command for a benchmark target — exactly one of `exec` or `entrypoint`.
+#[derive(Debug, Clone, Serialize, PartialEq, JsonSchema)]
+#[serde(untagged)]
+pub enum TargetCommand {
+    /// Command measured by exec-harness
+    Exec { exec: String },
+    /// Command with built-in benchmark harness
+    Entrypoint { entrypoint: String },
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, JsonSchema)]
@@ -64,4 +73,36 @@ pub struct WalltimeOptions {
     pub max_rounds: Option<u64>,
     /// Minimum number of rounds
     pub min_rounds: Option<u64>,
+}
+
+// Custom implementation to enforce mutual exclusivity of `exec` and `entrypoint` fields, not
+// directly supported by serde's untagged enums.
+impl<'de> Deserialize<'de> for TargetCommand {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "kebab-case")]
+        struct RawTarget {
+            exec: Option<String>,
+            entrypoint: Option<String>,
+        }
+
+        let raw = RawTarget::deserialize(deserializer)?;
+        Ok(match (raw.exec, raw.entrypoint) {
+            (Some(exec), None) => TargetCommand::Exec { exec },
+            (None, Some(entrypoint)) => TargetCommand::Entrypoint { entrypoint },
+            (Some(_), Some(_)) => {
+                return Err(serde::de::Error::custom(
+                    "a target cannot have both `exec` and `entrypoint`",
+                ));
+            }
+            (None, None) => {
+                return Err(serde::de::Error::custom(
+                    "a target must have either `exec` or `entrypoint`",
+                ));
+            }
+        })
+    }
 }

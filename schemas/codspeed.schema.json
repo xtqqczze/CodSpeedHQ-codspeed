@@ -1,9 +1,20 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ProjectConfig",
-  "description": "Project-level configuration from codspeed.yaml file\n\nThis configuration provides default options for the run and exec commands. CLI arguments always take precedence over config file values.",
+  "description": "Project-level configuration from codspeed.yaml file\n\nThis configuration provides default options for the run and exec commands.\nCLI arguments always take precedence over config file values.",
   "type": "object",
   "properties": {
+    "options": {
+      "description": "Default options to apply to all benchmark runs",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ProjectOptions"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "benchmarks": {
       "description": "List of benchmark targets to execute",
       "type": [
@@ -11,53 +22,17 @@
         "null"
       ],
       "items": {
-        "$ref": "#/definitions/Target"
+        "$ref": "#/$defs/Target"
       }
-    },
-    "options": {
-      "description": "Default options to apply to all benchmark runs",
-      "anyOf": [
-        {
-          "$ref": "#/definitions/ProjectOptions"
-        },
-        {
-          "type": "null"
-        }
-      ]
     }
   },
-  "definitions": {
+  "$defs": {
     "ProjectOptions": {
       "description": "Root-level options that apply to all benchmark runs unless overridden by CLI",
       "type": "object",
       "properties": {
-        "max-rounds": {
-          "description": "Maximum number of rounds",
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint64",
-          "minimum": 0.0
-        },
-        "max-time": {
-          "description": "Maximum total execution time",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "min-rounds": {
-          "description": "Minimum number of rounds",
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint64",
-          "minimum": 0.0
-        },
-        "min-time": {
-          "description": "Minimum total execution time",
+        "working-directory": {
+          "description": "Working directory where commands will be executed (relative to config file)",
           "type": [
             "string",
             "null"
@@ -70,12 +45,37 @@
             "null"
           ]
         },
-        "working-directory": {
-          "description": "Working directory where commands will be executed (relative to config file)",
+        "max-time": {
+          "description": "Maximum total execution time",
           "type": [
             "string",
             "null"
           ]
+        },
+        "min-time": {
+          "description": "Minimum total execution time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "max-rounds": {
+          "description": "Maximum number of rounds",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "min-rounds": {
+          "description": "Minimum number of rounds",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
         }
       }
     },
@@ -83,15 +83,8 @@
       "description": "A benchmark target to execute.\n\nEither `exec` or `entrypoint` must be specified (mutually exclusive).",
       "type": "object",
       "properties": {
-        "entrypoint": {
-          "description": "Command with built-in benchmark harness (mutually exclusive with `exec`)",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "exec": {
-          "description": "Command measured by exec-harness (mutually exclusive with `entrypoint`)",
+        "name": {
+          "description": "Optional name for this target (display purposes only)",
           "type": [
             "string",
             "null"
@@ -104,38 +97,55 @@
             "null"
           ]
         },
-        "name": {
-          "description": "Optional name for this target (display purposes only)",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
         "options": {
           "description": "Target-specific options",
-          "anyOf": [
+          "oneOf": [
             {
-              "$ref": "#/definitions/TargetOptions"
+              "$ref": "#/$defs/TargetOptions"
             },
             {
               "type": "null"
             }
           ]
         }
-      }
+      },
+      "oneOf": [
+        {
+          "description": "Command measured by exec-harness",
+          "type": "object",
+          "properties": {
+            "exec": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "exec"
+          ]
+        },
+        {
+          "description": "Command with built-in benchmark harness",
+          "type": "object",
+          "properties": {
+            "entrypoint": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "entrypoint"
+          ]
+        }
+      ]
     },
     "TargetOptions": {
       "description": "Walltime execution options matching WalltimeExecutionArgs structure",
       "type": "object",
       "properties": {
-        "max-rounds": {
-          "description": "Maximum number of rounds",
+        "warmup-time": {
+          "description": "Duration of warmup phase (e.g., \"1s\", \"500ms\")",
           "type": [
-            "integer",
+            "string",
             "null"
-          ],
-          "format": "uint64",
-          "minimum": 0.0
+          ]
         },
         "max-time": {
           "description": "Maximum total execution time",
@@ -144,15 +154,6 @@
             "null"
           ]
         },
-        "min-rounds": {
-          "description": "Minimum number of rounds",
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint64",
-          "minimum": 0.0
-        },
         "min-time": {
           "description": "Minimum total execution time",
           "type": [
@@ -160,12 +161,23 @@
             "null"
           ]
         },
-        "warmup-time": {
-          "description": "Duration of warmup phase (e.g., \"1s\", \"500ms\")",
+        "max-rounds": {
+          "description": "Maximum number of rounds",
           "type": [
-            "string",
+            "integer",
             "null"
-          ]
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "min-rounds": {
+          "description": "Minimum number of rounds",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
         }
       }
     }

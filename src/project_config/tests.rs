@@ -248,10 +248,20 @@ benchmarks:
     let benchmarks = config.benchmarks.unwrap();
     assert_eq!(benchmarks.len(), 2);
 
-    assert_eq!(benchmarks[0].exec, Some("ls -al /nix/store".to_string()));
+    assert_eq!(
+        benchmarks[0].command,
+        TargetCommand::Exec {
+            exec: "ls -al /nix/store".to_string()
+        }
+    );
     assert!(benchmarks[0].name.is_none());
 
-    assert_eq!(benchmarks[1].exec, Some("./my_binary".to_string()));
+    assert_eq!(
+        benchmarks[1].command,
+        TargetCommand::Exec {
+            exec: "./my_binary".to_string()
+        }
+    );
     assert_eq!(benchmarks[1].name, Some("my exec benchmark".to_string()));
     let walltime = benchmarks[1]
         .options
@@ -276,15 +286,20 @@ benchmarks:
     assert_eq!(benchmarks.len(), 2);
 
     assert_eq!(
-        benchmarks[0].entrypoint,
-        Some("pytest --codspeed src".to_string())
+        benchmarks[0].command,
+        TargetCommand::Entrypoint {
+            entrypoint: "pytest --codspeed src".to_string()
+        }
     );
     assert_eq!(benchmarks[0].name, Some("my python benchmarks".to_string()));
-    assert!(benchmarks[0].exec.is_none());
 
-    assert_eq!(benchmarks[1].entrypoint, Some("cargo bench".to_string()));
+    assert_eq!(
+        benchmarks[1].command,
+        TargetCommand::Entrypoint {
+            entrypoint: "cargo bench".to_string()
+        }
+    );
     assert!(benchmarks[1].name.is_none());
-    assert!(benchmarks[1].exec.is_none());
 }
 
 #[test]
@@ -297,50 +312,36 @@ benchmarks:
     let config: ProjectConfig = serde_yaml::from_str(yaml).unwrap();
     let benchmarks = config.benchmarks.unwrap();
     assert_eq!(benchmarks.len(), 2);
-    assert!(benchmarks[0].exec.is_some());
-    assert!(benchmarks[1].entrypoint.is_some());
+    assert!(matches!(benchmarks[0].command, TargetCommand::Exec { .. }));
+    assert!(matches!(
+        benchmarks[1].command,
+        TargetCommand::Entrypoint { .. }
+    ));
 }
 
 #[test]
-fn test_validate_target_missing_exec_and_entrypoint() {
-    let config = ProjectConfig {
-        options: None,
-        benchmarks: Some(vec![Target {
-            name: None,
-            id: None,
-            exec: None,
-            entrypoint: None,
-            options: None,
-        }]),
-    };
-    let result = config.validate();
+fn test_deserialize_target_missing_exec_and_entrypoint() {
+    let yaml = r#"
+benchmarks:
+  - name: missing command
+"#;
+    let result: Result<ProjectConfig, _> = serde_yaml::from_str(yaml);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_deserialize_target_both_exec_and_entrypoint() {
+    let yaml = r#"
+benchmarks:
+  - exec: ls
+    entrypoint: pytest
+"#;
+    let result: Result<ProjectConfig, _> = serde_yaml::from_str(yaml);
     assert!(result.is_err());
     assert!(
         result
             .unwrap_err()
             .to_string()
-            .contains("either 'exec' or 'entrypoint'")
-    );
-}
-
-#[test]
-fn test_validate_target_both_exec_and_entrypoint() {
-    let config = ProjectConfig {
-        options: None,
-        benchmarks: Some(vec![Target {
-            name: None,
-            id: None,
-            exec: Some("ls".to_string()),
-            entrypoint: Some("pytest".to_string()),
-            options: None,
-        }]),
-    };
-    let result = config.validate();
-    assert!(result.is_err());
-    assert!(
-        result
-            .unwrap_err()
-            .to_string()
-            .contains("mutually exclusive")
+            .contains("a target cannot have both `exec` and `entrypoint`")
     );
 }

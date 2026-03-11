@@ -145,23 +145,7 @@ impl ProjectConfig {
                 Self::validate_walltime_options(walltime, "root options")?;
             }
         }
-        if let Some(benchmarks) = &self.benchmarks {
-            for target in benchmarks {
-                Self::validate_target(target)?;
-            }
-        }
         Ok(())
-    }
-
-    /// Validate a single benchmark target
-    fn validate_target(target: &Target) -> Result<()> {
-        match (&target.exec, &target.entrypoint) {
-            (None, None) => bail!("Benchmark target must specify either 'exec' or 'entrypoint'"),
-            (Some(_), Some(_)) => bail!(
-                "Benchmark target cannot specify both 'exec' and 'entrypoint' (they are mutually exclusive)"
-            ),
-            _ => Ok(()),
-        }
     }
 
     /// Validate walltime options for conflicting constraints

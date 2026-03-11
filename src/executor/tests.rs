@@ -337,12 +337,22 @@ fi
         EXEC_HARNESS_COMMANDS.to_vec()
     }
 
+    fn wrap_with_exec_harness(
+        walltime_args: &exec_harness::walltime::WalltimeExecutionArgs,
+        command: &[String],
+    ) -> String {
+        shell_words::join(
+            std::iter::once(crate::cli::exec::EXEC_HARNESS_COMMAND)
+                .chain(walltime_args.to_cli_args().iter().map(|s| s.as_str()))
+                .chain(command.iter().map(|s| s.as_str())),
+        )
+    }
+
     // Ensure that the walltime executor works with the exec-harness
     #[apply(exec_harness_test_cases)]
     #[rstest::rstest]
     #[test_log::test(tokio::test)]
     async fn test_exec_harness(#[case] cmd: &str) {
-        use crate::cli::exec::wrap_with_exec_harness;
         use exec_harness::walltime::WalltimeExecutionArgs;
 
         let (_permit, executor) = get_walltime_executor().await;

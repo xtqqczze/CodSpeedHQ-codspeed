@@ -1,8 +1,7 @@
 use super::EXEC_HARNESS_COMMAND;
 use crate::executor::config::BenchmarkTarget;
 use crate::prelude::*;
-use crate::project_config::Target;
-use crate::project_config::WalltimeOptions;
+use crate::project_config::{Target, TargetCommand, WalltimeOptions};
 use exec_harness::BenchmarkCommand;
 
 /// Merge default walltime options with target-specific overrides
@@ -50,8 +49,8 @@ pub fn build_benchmark_targets(
 ) -> Result<Vec<BenchmarkTarget>> {
     targets
         .iter()
-        .map(|target| match (&target.exec, &target.entrypoint) {
-            (Some(exec), None) => {
+        .map(|target| match &target.command {
+            TargetCommand::Exec { exec } => {
                 let command = shell_words::split(exec)
                     .with_context(|| format!("Failed to parse command: {exec}"))?;
                 let target_walltime = target.options.as_ref().and_then(|o| o.walltime.as_ref());
@@ -62,11 +61,10 @@ pub fn build_benchmark_targets(
                     walltime_args,
                 })
             }
-            (None, Some(entrypoint)) => Ok(BenchmarkTarget::Entrypoint {
+            TargetCommand::Entrypoint { entrypoint } => Ok(BenchmarkTarget::Entrypoint {
                 command: entrypoint.clone(),
                 name: target.name.clone(),
             }),
-            _ => bail!("Benchmark target must have exactly one of 'exec' or 'entrypoint' set"),
         })
         .collect()
 }

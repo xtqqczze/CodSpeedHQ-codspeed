@@ -21,18 +21,6 @@ pub const DEFAULT_REPOSITORY_NAME: &str = "local-runs";
 pub const EXEC_HARNESS_COMMAND: &str = "exec-harness";
 pub const EXEC_HARNESS_VERSION: &str = "1.2.0";
 
-#[cfg(test)]
-pub fn wrap_with_exec_harness(
-    walltime_args: &exec_harness::walltime::WalltimeExecutionArgs,
-    command: &[String],
-) -> String {
-    shell_words::join(
-        std::iter::once(EXEC_HARNESS_COMMAND)
-            .chain(walltime_args.to_cli_args().iter().map(|s| s.as_str()))
-            .chain(command.iter().map(|s| s.as_str())),
-    )
-}
-
 #[derive(Args, Debug)]
 pub struct ExecArgs {
     #[command(flatten)]
