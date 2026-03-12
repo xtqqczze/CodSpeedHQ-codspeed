@@ -72,7 +72,11 @@ pub async fn poll_results(
         ));
     }
 
-    if !response.run.results.is_empty() {
+    if response.run.results.is_empty() {
+        warn!(
+            "No benchmarks were found in the run. Make sure your command runs benchmarks that are instrumented with a CodSpeed integration."
+        );
+    } else {
         end_group!();
         start_group!("Benchmark results");
 

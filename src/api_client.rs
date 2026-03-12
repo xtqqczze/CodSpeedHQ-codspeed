@@ -92,6 +92,7 @@ pub enum ReportConclusion {
     AcknowledgedFailure,
     Failure,
     MissingBaseRun,
+    NoBenchmarks,
     Success,
 }
 
@@ -104,6 +105,9 @@ impl Display for ReportConclusion {
             ReportConclusion::Failure => write!(f, "{}", style("Failure").red().bold()),
             ReportConclusion::MissingBaseRun => {
                 write!(f, "{}", style("Missing Base Run").yellow().bold())
+            }
+            ReportConclusion::NoBenchmarks => {
+                write!(f, "{}", style("No Benchmarks").yellow().bold())
             }
             ReportConclusion::Success => write!(f, "{}", style("Success").green().bold()),
         }
