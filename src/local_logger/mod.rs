@@ -28,6 +28,18 @@ lazy_static! {
     pub static ref SPINNER: Arc<Mutex<Option<ProgressBar>>> = Arc::new(Mutex::new(None));
     pub static ref IS_TTY: bool = std::io::IsTerminal::is_terminal(&std::io::stdout());
     static ref CURRENT_GROUP_NAME: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+
+    /// Log records deferred while the rolling buffer owns the terminal.
+    /// Flushed in `draw_frame` before each redraw.
+    static ref DEFERRED_LOGS: Mutex<Vec<DeferredLog>> = Mutex::new(Vec::new());
+}
+
+/// A snapshot of a log record that can be stored across the rolling-buffer
+/// lifetime (the original `log::Record` borrows data and cannot be kept).
+struct DeferredLog {
+    level: log::Level,
+    message: String,
+    target: String,
 }
 
 /// Hide the progress bar temporarily, execute `f`, then redraw the progress bar.
@@ -125,6 +137,25 @@ impl Log for LocalLogger {
             return;
         }
 
+        // When the rolling buffer is active it owns the terminal region and uses
+        // cursor manipulation to redraw.  Any direct stderr output would corrupt
+        // the display, so we defer log records and flush them before each redraw.
+        {
+            use rolling_buffer::ROLLING_BUFFER;
+            if let Ok(guard) = ROLLING_BUFFER.try_lock() {
+                if guard.as_ref().is_some_and(|rb| rb.is_active()) {
+                    if let Ok(mut deferred) = DEFERRED_LOGS.try_lock() {
+                        deferred.push(DeferredLog {
+                            level: record.level(),
+                            message: format!("{}", record.args()),
+                            target: record.target().to_string(),
+                        });
+                    }
+                    return;
+                }
+            }
+        }
+
         suspend_progress_bar(|| print_record(record));
     }
 
@@ -183,36 +214,69 @@ fn indent_lines(s: &str, indent: &str) -> String {
 
 /// Print a log record to the console with the appropriate style
 fn print_record(record: &log::Record) {
-    match record.level() {
+    eprintln!(
+        "{}",
+        format_log(
+            record.level(),
+            &format!("{}", record.args()),
+            record.target(),
+        )
+    );
+}
+
+/// Format a log entry with the appropriate style for its level.
+fn format_log(level: log::Level, message: &str, target: &str) -> String {
+    match level {
         log::Level::Error => {
             let prefix = style("\u{f00d}").red().bold();
-            let msg = indent_lines(&format!("{}", record.args()), "    ");
+            let msg = indent_lines(message, "    ");
             let msg = Style::new().red().apply_to(msg);
-            eprintln!("  {prefix} {msg}");
+            format!("  {prefix} {msg}")
         }
         log::Level::Warn => {
             let prefix = style("\u{f071}").yellow();
-            let msg = indent_lines(&format!("{}", record.args()), "    ");
+            let msg = indent_lines(message, "    ");
             let msg = Style::new().yellow().apply_to(msg);
-            eprintln!("  {prefix} {msg}");
+            format!("  {prefix} {msg}")
         }
         log::Level::Info => {
-            let msg = indent_lines(&format!("{}", record.args()), "  ");
+            let msg = indent_lines(message, "  ");
             let msg = Style::new().white().apply_to(msg);
-            eprintln!("  {msg}");
+            format!("  {msg}")
         }
         log::Level::Debug => {
             let prefix = style("\u{00B7}").dim();
-            let msg = indent_lines(&format!("{}", record.args()), "    ");
+            let msg = indent_lines(message, "    ");
             let msg = Style::new().blue().dim().apply_to(msg);
-            eprintln!("  {prefix} {msg}");
+            format!("  {prefix} {msg}")
         }
         log::Level::Trace => {
-            let raw = format!("[TRACE::{}] {}", record.target(), record.args());
+            let raw = format!("[TRACE::{target}] {message}");
             let msg = indent_lines(&raw, "  ");
             let msg = Style::new().black().dim().apply_to(msg);
-            eprintln!("  {msg}");
+            format!("  {msg}")
         }
+    }
+}
+
+/// Flush all log records that were deferred while the rolling buffer was active.
+/// Each line is cleared before writing to avoid leftover characters from the
+/// rolling buffer frame being overwritten.
+pub(crate) fn flush_deferred_logs(term: &console::Term) {
+    let logs: Vec<DeferredLog> = {
+        match DEFERRED_LOGS.try_lock() {
+            Ok(mut deferred) => std::mem::take(&mut *deferred),
+            Err(_) => return,
+        }
+    };
+    if !logs.is_empty() {
+        // Clear from cursor to end of screen so that wrapped lines from the
+        // rolling buffer frame don't leave artifacts behind deferred log output.
+        term.clear_to_end_of_screen().ok();
+    }
+    for log in &logs {
+        let formatted = format_log(log.level, &log.message, &log.target);
+        term.write_line(&formatted).ok();
     }
 }
 

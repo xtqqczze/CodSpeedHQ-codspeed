@@ -210,6 +210,10 @@ impl RollingBuffer {
             self.term.move_cursor_up(self.rendered_count).ok();
         }
 
+        // Flush deferred logs above the frame so they become permanent output
+        // and the rolling buffer shifts down naturally.
+        super::flush_deferred_logs(&self.term);
+
         for line in frame {
             self.term.clear_line().ok();
             self.term.write_line(line).ok();
