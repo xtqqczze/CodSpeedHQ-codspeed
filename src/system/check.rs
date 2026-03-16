@@ -1,12 +1,12 @@
-use lazy_static::lazy_static;
 use std::collections::HashSet;
+use std::sync::LazyLock;
 
 use crate::prelude::*;
 
 use super::SystemInfo;
 
-lazy_static! {
-    static ref SUPPORTED_SYSTEMS: HashSet<(&'static str, &'static str, &'static str)> = {
+static SUPPORTED_SYSTEMS: LazyLock<HashSet<(&'static str, &'static str, &'static str)>> =
+    LazyLock::new(|| {
         HashSet::from([
             ("ubuntu", "22.04", "x86_64"),
             ("ubuntu", "24.04", "x86_64"),
@@ -15,8 +15,7 @@ lazy_static! {
             ("debian", "12", "x86_64"),
             ("debian", "12", "aarch64"),
         ])
-    };
-}
+    });
 
 /// Checks if the provided system info is supported
 ///

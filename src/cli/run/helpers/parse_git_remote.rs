@@ -1,12 +1,13 @@
-use anyhow::{Result, anyhow};
-use lazy_static::lazy_static;
+use std::sync::LazyLock;
 
-lazy_static! {
-    static ref REMOTE_REGEX: regex::Regex = regex::Regex::new(
-        r"(?P<domain>[^/@\.]+\.\w+)[:/](?P<owner>[^/]+)/(?P<repository>[^/]+?)(\.git)?/?$"
+use anyhow::{Result, anyhow};
+
+static REMOTE_REGEX: LazyLock<regex::Regex> = LazyLock::new(|| {
+    regex::Regex::new(
+        r"(?P<domain>[^/@\.]+\.\w+)[:/](?P<owner>[^/]+)/(?P<repository>[^/]+?)(\.git)?/?$",
     )
-    .unwrap();
-}
+    .unwrap()
+});
 
 #[derive(Debug)]
 pub struct GitRemote {

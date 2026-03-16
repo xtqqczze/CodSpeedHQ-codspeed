@@ -1,6 +1,7 @@
+use std::sync::LazyLock;
+
 use async_trait::async_trait;
 use git2::Repository;
-use lazy_static::lazy_static;
 use regex::Regex;
 use serde::Deserialize;
 use serde_json::Value;
@@ -63,9 +64,8 @@ struct OIDCResponse {
     value: Option<String>,
 }
 
-lazy_static! {
-    static ref PR_REF_REGEX: Regex = Regex::new(r"^refs/pull/(?P<pr_number>\d+)/merge$").unwrap();
-}
+static PR_REF_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^refs/pull/(?P<pr_number>\d+)/merge$").unwrap());
 
 impl TryFrom<&OrchestratorConfig> for GitHubActionsProvider {
     type Error = Error;

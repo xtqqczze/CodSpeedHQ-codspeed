@@ -9,10 +9,10 @@ use std::{
 use crate::prelude::*;
 use console::{Style, style};
 use indicatif::{ProgressBar, ProgressStyle};
-use lazy_static::lazy_static;
 use log::Log;
 use simplelog::{CombinedLogger, SharedLogger};
 use std::io::Write;
+use std::sync::LazyLock;
 
 use crate::logger::{GroupEvent, JsonEvent, get_group_event, get_json_event};
 
@@ -24,15 +24,16 @@ pub(crate) const SPINNER_TICKS: &[&str] = &["  ", ". ", "..", " ."];
 /// Interval between spinner animation ticks (milliseconds)
 pub(crate) const TICK_INTERVAL_MS: u64 = 300;
 
-lazy_static! {
-    pub static ref SPINNER: Arc<Mutex<Option<ProgressBar>>> = Arc::new(Mutex::new(None));
-    pub static ref IS_TTY: bool = std::io::IsTerminal::is_terminal(&std::io::stdout());
-    static ref CURRENT_GROUP_NAME: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+pub static SPINNER: LazyLock<Arc<Mutex<Option<ProgressBar>>>> =
+    LazyLock::new(|| Arc::new(Mutex::new(None)));
+pub static IS_TTY: LazyLock<bool> =
+    LazyLock::new(|| std::io::IsTerminal::is_terminal(&std::io::stdout()));
+static CURRENT_GROUP_NAME: LazyLock<Arc<Mutex<Option<String>>>> =
+    LazyLock::new(|| Arc::new(Mutex::new(None)));
 
-    /// Log records deferred while the rolling buffer owns the terminal.
-    /// Flushed in `draw_frame` before each redraw.
-    static ref DEFERRED_LOGS: Mutex<Vec<DeferredLog>> = Mutex::new(Vec::new());
-}
+/// Log records deferred while the rolling buffer owns the terminal.
+/// Flushed in `draw_frame` before each redraw.
+static DEFERRED_LOGS: LazyLock<Mutex<Vec<DeferredLog>>> = LazyLock::new(|| Mutex::new(Vec::new()));
 
 /// A snapshot of a log record that can be stored across the rolling-buffer
 /// lifetime (the original `log::Record` borrows data and cannot be kept).

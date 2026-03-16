@@ -1,5 +1,6 @@
+use std::sync::LazyLock;
+
 use console::style;
-use lazy_static::lazy_static;
 use log::{Level, LevelFilter, Log};
 use regex::Regex;
 use simplelog::SharedLogger;
@@ -15,10 +16,8 @@ use crate::{
     run_environment::logger::should_provider_logger_handle_record,
 };
 
-lazy_static! {
-    static ref GITLAB_SECTION_ID_SANITIZE_REGEX: Regex =
-        Regex::new(r"[^\d\w\-_]").expect("Failed to compile GitLab SectionId regex");
-}
+static GITLAB_SECTION_ID_SANITIZE_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"[^\d\w\-_]").expect("Failed to compile GitLab SectionId regex"));
 
 /// Unicode Escape character
 ///

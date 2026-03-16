@@ -14,7 +14,6 @@ path = "src/main.rs"
 anyhow = { workspace = true }
 clap = { workspace = true, features = ["env", "color"] }
 itertools = { workspace = true }
-lazy_static = "1.4.0"
 log = { workspace = true }
 rand = "0.8.5"
 rayon = "1.10"

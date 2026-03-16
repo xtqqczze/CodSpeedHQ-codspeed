@@ -7,16 +7,14 @@ use super::{
     CODSPEED_U8_COLOR_CODE, IS_TTY, SPINNER, SPINNER_TICKS, TICK_INTERVAL_MS, format_checkmark,
 };
 use console::{Term, style};
-use lazy_static::lazy_static;
+use std::sync::LazyLock;
 
 const INDENT: &str = "    ";
 
-lazy_static! {
-    /// Global shared rolling buffer, set by `activate_rolling_buffer` and
-    /// consumed by `log_tee` in `run_command_with_log_pipe`.
-    pub(crate) static ref ROLLING_BUFFER: Mutex<Option<RollingBuffer>> =
-        Mutex::new(None);
-}
+/// Global shared rolling buffer, set by `activate_rolling_buffer` and
+/// consumed by `log_tee` in `run_command_with_log_pipe`.
+pub(crate) static ROLLING_BUFFER: LazyLock<Mutex<Option<RollingBuffer>>> =
+    LazyLock::new(|| Mutex::new(None));
 
 /// Stop signal for the tick thread.
 ///
