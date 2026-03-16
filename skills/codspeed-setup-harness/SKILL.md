@@ -1,5 +1,5 @@
 ---
-name: setup-harness
+name: codspeed-setup-harness
 description: "Set up performance benchmarks and CodSpeed harness for a project. Use this skill whenever the user wants to create benchmarks, add performance tests, set up CodSpeed, configure codspeed.yml, integrate a benchmarking framework (criterion, divan, pytest-benchmark, vitest bench, go test -bench, google benchmark), or when the user says 'add benchmarks', 'set up perf tests', 'create a benchmark', 'benchmark this', or wants to measure performance of their code for the first time. Also trigger when the optimize skill needs benchmarks that don't exist yet."
 ---
 
@@ -27,13 +27,13 @@ Based on the language and what the user wants to benchmark, pick the right harne
 
 These integrate deeply with CodSpeed and provide per-benchmark flamegraphs, fine-grained comparison, and simulation mode support.
 
-| Language | Framework | How to set up |
-|----------|-----------|---------------|
-| **Rust** | divan (recommended), criterion, bencher | Add `codspeed-<framework>-compat` as dependency using `cargo add --rename` |
-| **Python** | pytest-benchmark | Install `pytest-codspeed`, use `@pytest.benchmark` or `benchmark` fixture |
-| **Node.js** | vitest (recommended), tinybench v5, benchmark.js | Install `@codspeed/<framework>-plugin`, configure in vitest/test config |
-| **Go** | go test -bench | No packages needed — CodSpeed instruments `go test -bench` directly |
-| **C/C++** | Google Benchmark | Build with CMake, CodSpeed instruments via valgrind-codspeed |
+| Language    | Framework                                        | How to set up                                                              |
+| ----------- | ------------------------------------------------ | -------------------------------------------------------------------------- |
+| **Rust**    | divan (recommended), criterion, bencher          | Add `codspeed-<framework>-compat` as dependency using `cargo add --rename` |
+| **Python**  | pytest-benchmark                                 | Install `pytest-codspeed`, use `@pytest.benchmark` or `benchmark` fixture  |
+| **Node.js** | vitest (recommended), tinybench v5, benchmark.js | Install `@codspeed/<framework>-plugin`, configure in vitest/test config    |
+| **Go**      | go test -bench                                   | No packages needed — CodSpeed instruments `go test -bench` directly        |
+| **C/C++**   | Google Benchmark                                 | Build with CMake, CodSpeed instruments via valgrind-codspeed               |
 
 ### Exec harness (universal)
 
@@ -43,6 +43,7 @@ For any language or when you want to benchmark a whole program (not individual f
 - Or create a `codspeed.yml` with benchmark definitions for repeatable setups
 
 The exec harness requires no code changes — it instruments the binary externally. This is ideal for:
+
 - Languages without a dedicated CodSpeed integration
 - End-to-end benchmarks (full program execution)
 - Quick setup when you just want to track a command's performance
@@ -58,12 +59,14 @@ The exec harness requires no code changes — it instruments the binary external
 ### Rust with divan (recommended)
 
 1. Add the dependency:
+
 ```bash
 cargo add divan
 cargo add codspeed-divan-compat --rename divan --dev
 ```
 
 2. Create a benchmark file in `benches/`:
+
 ```rust
 // benches/my_bench.rs
 use divan;
@@ -81,6 +84,7 @@ fn bench_my_function() {
 ```
 
 3. Add to `Cargo.toml`:
+
 ```toml
 [[bench]]
 name = "my_bench"
@@ -88,6 +92,7 @@ harness = false
 ```
 
 4. Build and run:
+
 ```bash
 cargo codspeed build -m simulation --bench my_bench
 codspeed run -m simulation -- cargo codspeed run --bench my_bench
@@ -96,12 +101,14 @@ codspeed run -m simulation -- cargo codspeed run --bench my_bench
 ### Rust with criterion
 
 1. Add dependencies:
+
 ```bash
 cargo add criterion --dev
 cargo add codspeed-criterion-compat --rename criterion --dev
 ```
 
 2. Create benchmark in `benches/`:
+
 ```rust
 use criterion::{criterion_group, criterion_main, Criterion};
 
@@ -120,6 +127,7 @@ criterion_main!(benches);
 ### Python with pytest-codspeed
 
 1. Install:
+
 ```bash
 pip install pytest-codspeed
 # or
@@ -127,6 +135,7 @@ uv add --dev pytest-codspeed
 ```
 
 2. Create benchmark tests:
+
 ```python
 # tests/test_benchmarks.py
 import pytest
@@ -143,6 +152,7 @@ def test_with_setup(benchmark):
 ```
 
 3. Run:
+
 ```bash
 codspeed run -m simulation -- pytest --codspeed
 ```
@@ -150,6 +160,7 @@ codspeed run -m simulation -- pytest --codspeed
 ### Node.js with vitest (recommended)
 
 1. Install:
+
 ```bash
 npm install -D @codspeed/vitest-plugin
 # or
@@ -157,6 +168,7 @@ pnpm add -D @codspeed/vitest-plugin
 ```
 
 2. Configure vitest (`vitest.config.ts`):
+
 ```typescript
 import { defineConfig } from "vitest/config";
 import codspeed from "@codspeed/vitest-plugin";
@@ -167,6 +179,7 @@ export default defineConfig({
 ```
 
 3. Create benchmark file:
+
 ```typescript
 // bench/my.bench.ts
 import { bench, describe } from "vitest";
@@ -179,6 +192,7 @@ describe("my module", () => {
 ```
 
 4. Run:
+
 ```bash
 codspeed run -m simulation -- npx vitest bench
 ```
@@ -188,6 +202,7 @@ codspeed run -m simulation -- npx vitest bench
 No packages needed — CodSpeed instruments `go test -bench` directly.
 
 1. Create benchmark tests:
+
 ```go
 // my_test.go
 func BenchmarkMyFunction(b *testing.B) {
@@ -198,6 +213,7 @@ func BenchmarkMyFunction(b *testing.B) {
 ```
 
 2. Run (walltime is the default for Go):
+
 ```bash
 codspeed run -m walltime -- go test -bench . ./...
 ```
@@ -207,6 +223,7 @@ codspeed run -m walltime -- go test -bench . ./...
 1. Install Google Benchmark (via CMake FetchContent or system package)
 
 2. Create benchmark:
+
 ```cpp
 #include <benchmark/benchmark.h>
 
@@ -221,6 +238,7 @@ BENCHMARK_MAIN();
 ```
 
 3. Build and run with CodSpeed:
+
 ```bash
 cmake -B build && cmake --build build
 codspeed run -m simulation -- ./build/my_benchmark
@@ -231,6 +249,7 @@ codspeed run -m simulation -- ./build/my_benchmark
 For benchmarking whole programs without code changes:
 
 1. Create `codspeed.yml`:
+
 ```yaml
 $schema: https://raw.githubusercontent.com/CodSpeedHQ/codspeed/refs/heads/main/schemas/codspeed.schema.json
 
@@ -249,11 +268,13 @@ benchmarks:
 ```
 
 2. Run:
+
 ```bash
 codspeed run -m walltime
 ```
 
 Or for a one-off:
+
 ```bash
 codspeed exec -m walltime -- ./my_binary --input data.txt
 ```
@@ -279,6 +300,7 @@ Good benchmarks are representative, isolated, and stable. Here are guidelines:
 After setting up:
 
 1. **Run the benchmarks locally** to verify they work:
+
 ```bash
 # For language-specific harnesses
 cargo codspeed build -m simulation && codspeed run -m simulation -- cargo codspeed run

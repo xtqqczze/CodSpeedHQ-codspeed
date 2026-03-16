@@ -1,5 +1,5 @@
 ---
-name: optimize
+name: codspeed-optimize
 description: "Autonomously optimize code for performance using CodSpeed benchmarks, flamegraph analysis, and iterative improvement. Use this skill whenever the user wants to make code faster, reduce CPU usage, optimize memory, improve throughput, find performance bottlenecks, or asks to 'optimize', 'speed up', 'make faster', 'reduce latency', 'improve performance', or points at a CodSpeed benchmark result wanting improvements. Also trigger when the user mentions a slow function, a regression, or wants to understand where time is spent in their code."
 ---
 
@@ -87,6 +87,7 @@ Use the CodSpeed MCP tools to understand where time is spent:
 Apply optimizations one at a time. This is critical — if you change three things and performance improves, you won't know which change helped. If it regresses, you won't know which one hurt.
 
 **Important constraints:**
+
 - Only change code you've read and understood
 - Preserve correctness — run existing tests after each change
 - Keep changes minimal and focused
@@ -148,11 +149,13 @@ codspeed exec -m walltime -- <command>
 Then compare the walltime run against a walltime baseline using `compare_runs`.
 
 **Patterns that often show up in simulation but NOT walltime:**
+
 - Iterator adapter overhead (e.g., `.take(n)` to `[..n]`) — branch prediction hides it
 - Bounds check elimination — hardware speculates past them
 - Trivial arithmetic simplifications — hidden by out-of-order execution
 
 **Patterns that reliably help in both modes:**
+
 - Avoiding type conversions in hot loops (float/integer round-trips)
 - Eliminating libm calls (roundf, sinf — these are software routines)
 - Skipping redundant memory initialization
@@ -165,6 +168,7 @@ If a simulation improvement doesn't show up in walltime, strongly consider rever
 If the user wants more optimization, go back to Step 2 with fresh flamegraphs from your latest run. The profile will have shifted now that you've addressed the top bottleneck, revealing new targets.
 
 Keep iterating until:
+
 - The user says they're satisfied
 - The flamegraph shows no clear bottleneck (time is spread evenly)
 - Remaining optimizations would require architectural changes the user hasn't approved
@@ -173,28 +177,34 @@ Keep iterating until:
 ## Language-specific notes
 
 ### Rust
+
 - Use `cargo codspeed build -m <mode>` to build, `cargo codspeed run` to run
 - `--bench <name>` selects specific benchmark suites (matching `[[bench]]` targets in Cargo.toml)
 - Positional filter after `cargo codspeed run` matches benchmark names (e.g., `cargo codspeed run cat.jpg`)
 - Frameworks: criterion, divan, bencher (all work with cargo-codspeed)
 
 ### Python
+
 - Uses pytest-codspeed: `codspeed run -m simulation -- pytest --codspeed`
 - Framework: pytest-benchmark compatible
 
 ### Node.js
+
 - Frameworks: vitest (`@codspeed/vitest-plugin`), tinybench v5 (`@codspeed/tinybench-plugin`), benchmark.js (`@codspeed/benchmark.js-plugin`)
 - Run via: `codspeed run -m simulation -- npx vitest bench` (or equivalent)
 
 ### Go
+
 - Built-in: `codspeed run -m simulation -- go test -bench .`
 - No special packages needed — CodSpeed instruments `go test -bench` directly
 
 ### C/C++
+
 - Uses Google Benchmark with valgrind-codspeed
 - Build with CMake, run benchmarks via `codspeed run`
 
 ### Any language (exec harness)
+
 - Use `codspeed exec -m <mode> -- <command>` for any executable
 - Or define benchmarks in `codspeed.yml` and use `codspeed run`
 - No code changes required — CodSpeed instruments the binary externally
