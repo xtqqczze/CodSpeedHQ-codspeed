@@ -292,7 +292,29 @@ nest! {
     }
 }
 
+nest! {
+    #[derive(Debug, Deserialize, Serialize)]*
+    #[serde(rename_all = "camelCase")]*
+    struct CurrentUserData {
+        user: Option<pub struct CurrentUserPayload {
+            pub login: String,
+            pub provider: RepositoryProvider,
+        }>,
+    }
+}
+
 impl CodSpeedAPIClient {
+    pub async fn get_current_user(&self) -> Result<Option<CurrentUserPayload>> {
+        let response = self
+            .gql_client
+            .query_unwrap::<CurrentUserData>(include_str!("queries/CurrentUser.gql"))
+            .await;
+        match response {
+            Ok(data) => Ok(data.user),
+            Err(err) => bail!("Failed to get current user: {err}"),
+        }
+    }
+
     pub async fn create_login_session(&self) -> Result<CreateLoginSessionPayload> {
         let response = self
             .unauthenticated_gql_client

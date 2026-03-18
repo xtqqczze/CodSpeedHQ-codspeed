@@ -31,7 +31,7 @@ mod jit_dump;
 mod naming;
 mod parse_perf_file;
 mod save_artifacts;
-mod setup;
+pub(crate) mod setup;
 
 pub mod debug_info;
 pub mod elf_helper;

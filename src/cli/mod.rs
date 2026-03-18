@@ -4,6 +4,7 @@ pub(crate) mod run;
 mod setup;
 mod shared;
 mod show;
+mod status;
 mod update;
 mod use_mode;
 
@@ -85,7 +86,9 @@ enum Commands {
     /// Manage the CLI authentication state
     Auth(auth::AuthArgs),
     /// Pre-install the codspeed executors
-    Setup,
+    Setup(setup::SetupArgs),
+    /// Show the overall status of CodSpeed (authentication, tools, system)
+    Status,
     /// Set the codspeed mode for the rest of the shell session
     Use(use_mode::UseArgs),
     /// Show the codspeed mode previously set in this shell session with `codspeed use`
@@ -142,7 +145,8 @@ pub async fn run() -> Result<()> {
             .await?
         }
         Commands::Auth(args) => auth::run(args, &api_client, cli.config_name.as_deref()).await?,
-        Commands::Setup => setup::setup(setup_cache_dir).await?,
+        Commands::Setup(args) => setup::run(args, setup_cache_dir).await?,
+        Commands::Status => status::run(&api_client).await?,
         Commands::Use(args) => use_mode::run(args)?,
         Commands::Show => show::run()?,
         Commands::Update => update::run().await?,
@@ -160,7 +164,7 @@ impl Cli {
             config_name: None,
             config: None,
             setup_cache_dir: None,
-            command: Commands::Setup,
+            command: Commands::Setup(setup::SetupArgs::default()),
         }
     }
 }
