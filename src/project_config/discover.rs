@@ -13,7 +13,6 @@ const CONFIG_FILENAMES: &[&str] = &[
 
 /// A project configuration paired with the path it was loaded from.
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct DiscoveredProjectConfig {
     pub config: ProjectConfig,
     pub path: PathBuf,
@@ -64,7 +63,6 @@ impl DiscoveredProjectConfig {
     }
 
     /// Returns the directory containing the config file.
-    #[allow(dead_code)]
     pub fn config_dir(&self) -> Option<PathBuf> {
         let canonical_path = self
             .path

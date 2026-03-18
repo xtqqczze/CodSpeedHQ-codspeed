@@ -5,8 +5,7 @@ use crate::executor;
 use crate::executor::config::{self, OrchestratorConfig, RepositoryOverride};
 use crate::instruments::Instruments;
 use crate::prelude::*;
-use crate::project_config::merger::ConfigMerger;
-use crate::project_config::{DiscoveredProjectConfig, ProjectConfig};
+use crate::project_config::DiscoveredProjectConfig;
 use crate::run_environment::interfaces::RepositoryProvider;
 use crate::upload::poll_results::PollResultsOptions;
 use clap::{Args, ValueEnum};
@@ -38,19 +37,6 @@ pub struct RunArgs {
 
     /// The bench command to run
     pub command: Vec<String>,
-}
-
-impl RunArgs {
-    /// Merge CLI args with project config if available
-    ///
-    /// CLI arguments take precedence over config values.
-    pub fn merge_with_project_config(mut self, project_config: Option<&ProjectConfig>) -> Self {
-        if let Some(project_config) = project_config {
-            self.shared =
-                ConfigMerger::merge_shared_args(&self.shared, project_config.options.as_ref());
-        }
-        self
-    }
 }
 
 #[derive(ValueEnum, Clone, Debug, PartialEq)]
@@ -158,7 +144,6 @@ pub async fn run(
     let output_json = args.message_format == Some(MessageFormat::Json);
     let project_config = discovered_config.map(|d| &d.config);
 
-    let args = args.merge_with_project_config(project_config);
     let run_target = if args.command.is_empty() {
         // No command provided - check for targets in project config
         let targets = project_config
@@ -183,6 +168,8 @@ pub async fn run(
 
     match run_target {
         RunTarget::SingleCommand(args) => {
+            // SingleCommand: working_directory comes from --working-directory CLI flag only.
+            // Config file's working-directory is NOT used.
             let command = args.command.join(" ");
             let config = build_orchestrator_config(
                 args,
@@ -192,6 +179,7 @@ pub async fn run(
                 }],
                 PollResultsOptions::for_run(output_json),
             )?;
+
             let orchestrator =
                 executor::Orchestrator::new(config, codspeed_config, api_client).await?;
 
@@ -208,10 +196,44 @@ pub async fn run(
             targets,
             default_walltime,
         } => {
+            // ConfigTargets: working_directory is resolved relative to config file dir.
+            // If --working-directory CLI flag is passed, ignore it with a warning.
+            if args.shared.working_directory.is_some() {
+                // Intentionally using eprintln! because logger has not been initialized yet.
+                eprintln!(
+                    "Warning: The --working-directory flag is ignored when running targets from the config file. \
+                    Use the `working-directory` option in the config file instead."
+                );
+            }
+
+            // Resolve working_directory relative to config file directory
+            let resolved_working_directory =
+                if let Some(config_dir) = discovered_config.and_then(|d| d.config_dir()) {
+                    let root_wd = project_config
+                        .and_then(|c| c.options.as_ref())
+                        .and_then(|o| o.working_directory.as_ref());
+
+                    match root_wd {
+                        Some(wd) => {
+                            let wd_path = Path::new(wd);
+                            if wd_path.is_absolute() {
+                                Some(wd.clone())
+                            } else {
+                                Some(config_dir.join(wd).to_string_lossy().into_owned())
+                            }
+                        }
+                        None => Some(config_dir.to_string_lossy().into_owned()),
+                    }
+                } else {
+                    None
+                };
+
             let benchmark_targets =
                 super::exec::multi_targets::build_benchmark_targets(targets, default_walltime)?;
-            let config =
+            let mut config =
                 build_orchestrator_config(args, benchmark_targets, PollResultsOptions::for_exec())?;
+            config.working_directory = resolved_working_directory;
+
             super::exec::execute_config(config, api_client, codspeed_config, setup_cache_dir)
                 .await?;
         }

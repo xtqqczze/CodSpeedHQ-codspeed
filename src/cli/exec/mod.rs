@@ -40,10 +40,6 @@ impl ExecArgs {
     /// CLI arguments take precedence over config values.
     pub fn merge_with_project_config(mut self, project_config: Option<&ProjectConfig>) -> Self {
         if let Some(project_config) = project_config {
-            // Merge shared args
-            self.shared =
-                ConfigMerger::merge_shared_args(&self.shared, project_config.options.as_ref());
-            // Merge walltime args
             self.walltime_args = ConfigMerger::merge_walltime_options(
                 &self.walltime_args,
                 project_config
