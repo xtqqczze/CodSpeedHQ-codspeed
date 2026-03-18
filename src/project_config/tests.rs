@@ -162,11 +162,12 @@ options:
     )
     .unwrap();
 
-    let config = ProjectConfig::discover_and_load(Some(&config_path), temp_dir.path()).unwrap();
+    let discovered =
+        DiscoveredProjectConfig::discover_and_load(Some(&config_path), temp_dir.path()).unwrap();
 
-    assert!(config.is_some());
-    let config = config.unwrap();
-    assert!(config.options.is_some());
+    assert!(discovered.is_some());
+    let discovered = discovered.unwrap();
+    assert!(discovered.config.options.is_some());
 }
 
 #[test]
@@ -174,7 +175,7 @@ fn test_discover_with_explicit_path_not_found() {
     let temp_dir = TempDir::new().unwrap();
     let config_path = temp_dir.path().join("missing.yaml");
 
-    let result = ProjectConfig::discover_and_load(Some(&config_path), temp_dir.path());
+    let result = DiscoveredProjectConfig::discover_and_load(Some(&config_path), temp_dir.path());
     assert!(result.is_err());
 }
 
@@ -192,9 +193,9 @@ options:
     )
     .unwrap();
 
-    let config = ProjectConfig::discover_and_load(None, temp_dir.path()).unwrap();
+    let discovered = DiscoveredProjectConfig::discover_and_load(None, temp_dir.path()).unwrap();
 
-    assert!(config.is_some());
+    assert!(discovered.is_some());
 }
 
 #[test]
@@ -220,18 +221,19 @@ options:
     )
     .unwrap();
 
-    let config = ProjectConfig::discover_and_load(None, temp_dir.path()).unwrap();
+    let discovered = DiscoveredProjectConfig::discover_and_load(None, temp_dir.path()).unwrap();
 
-    assert!(config.is_some());
-    // Note: We can no longer verify which file was loaded since we don't return the path
-    // The priority is still enforced but not testable without checking the filesystem
+    assert!(discovered.is_some());
+    let discovered = discovered.unwrap();
+    // Verify the .yaml file was picked over .yml (priority order)
+    assert!(discovered.path.ends_with("codspeed.yaml"));
 }
 
 #[test]
 fn test_discover_no_config_found() {
     let temp_dir = TempDir::new().unwrap();
-    let config = ProjectConfig::discover_and_load(None, temp_dir.path()).unwrap();
-    assert!(config.is_none());
+    let discovered = DiscoveredProjectConfig::discover_and_load(None, temp_dir.path()).unwrap();
+    assert!(discovered.is_none());
 }
 
 #[test]

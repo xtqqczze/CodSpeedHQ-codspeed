@@ -370,7 +370,6 @@ fi
         // Unset GITHUB_ACTIONS to force LocalProvider which supports repository_override
         temp_env::async_with_vars(&[("GITHUB_ACTIONS", None::<&str>)], async {
             let config = walltime_config(&wrapped_command, true);
-            dbg!(&config);
             let (execution_context, _temp_dir) = create_test_setup(config).await;
             executor.run(&execution_context, &None).await.unwrap();
         })

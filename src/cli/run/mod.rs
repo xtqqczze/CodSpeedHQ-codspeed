@@ -5,8 +5,8 @@ use crate::executor;
 use crate::executor::config::{self, OrchestratorConfig, RepositoryOverride};
 use crate::instruments::Instruments;
 use crate::prelude::*;
-use crate::project_config::ProjectConfig;
 use crate::project_config::merger::ConfigMerger;
+use crate::project_config::{DiscoveredProjectConfig, ProjectConfig};
 use crate::run_environment::interfaces::RepositoryProvider;
 use crate::upload::poll_results::PollResultsOptions;
 use clap::{Args, ValueEnum};
@@ -152,13 +152,13 @@ pub async fn run(
     args: RunArgs,
     api_client: &CodSpeedAPIClient,
     codspeed_config: &CodSpeedConfig,
-    project_config: Option<&ProjectConfig>,
+    discovered_config: Option<&DiscoveredProjectConfig>,
     setup_cache_dir: Option<&Path>,
 ) -> Result<()> {
     let output_json = args.message_format == Some(MessageFormat::Json);
+    let project_config = discovered_config.map(|d| &d.config);
 
     let args = args.merge_with_project_config(project_config);
-
     let run_target = if args.command.is_empty() {
         // No command provided - check for targets in project config
         let targets = project_config

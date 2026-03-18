@@ -1,125 +1,17 @@
 use crate::prelude::*;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
+mod discover;
 mod interfaces;
 pub mod merger;
 
+pub use discover::*;
 pub use interfaces::*;
 
-/// Config file names in priority order
-const CONFIG_FILENAMES: &[&str] = &[
-    "codspeed.yaml",
-    "codspeed.yml",
-    ".codspeed.yaml",
-    ".codspeed.yml",
-];
-
 impl ProjectConfig {
-    /// Discover and load project configuration file
-    ///
-    /// # Search Strategy
-    /// 1. If `config_path_override` is provided, load from that path only (error if not found)
-    /// 2. Otherwise, search for config files in current directory and upward to git root
-    /// 3. Try filenames in priority order: codspeed.yaml, codspeed.yml, .codspeed.yaml, .codspeed.yml
-    /// 4. If a config is found in a parent directory, changes the working directory to that location
-    ///
-    /// # Arguments
-    /// * `config_path_override` - Explicit path to config file (from --config flag)
-    /// * `current_dir` - Directory to start searching from
-    ///
-    /// # Returns
-    /// * `Ok(Some(config))` - Config found and loaded successfully
-    /// * `Ok(None)` - No config file found
-    /// * `Err(_)` - Error loading or parsing config
-    pub fn discover_and_load(
-        config_path_override: Option<&Path>,
-        current_dir: &Path,
-    ) -> Result<Option<ProjectConfig>> {
-        // Case 1: Explicit --config path provided
-        if let Some(config_path) = config_path_override {
-            let config = Self::load_from_path(config_path)
-                .with_context(|| format!("Failed to load config from {}", config_path.display()))?;
-            let canonical_path = config_path
-                .canonicalize()
-                .unwrap_or_else(|_| config_path.to_path_buf());
-
-            // Change working directory if config was found in a different directory
-            Self::change_to_config_directory(&canonical_path, current_dir)?;
-
-            return Ok(Some(config));
-        }
-
-        // Case 2: Search for config files
-        let search_dirs = Self::get_search_directories(current_dir)?;
-
-        for dir in search_dirs {
-            for filename in CONFIG_FILENAMES {
-                let candidate_path = dir.join(filename);
-                if candidate_path.exists() {
-                    debug!("Found config file at {}", candidate_path.display());
-                    let config = Self::load_from_path(&candidate_path)?;
-                    let canonical_path = candidate_path.canonicalize().unwrap_or(candidate_path);
-
-                    // Change working directory if config was found in a different directory
-                    Self::change_to_config_directory(&canonical_path, current_dir)?;
-
-                    return Ok(Some(config));
-                }
-            }
-        }
-
-        // No config found - this is OK
-        Ok(None)
-    }
-
-    /// Get list of directories to search for config files
-    ///
-    /// Returns directories from current_dir upward to git root (if in a git repo)
-    fn get_search_directories(current_dir: &Path) -> Result<Vec<PathBuf>> {
-        let mut dirs = vec![current_dir.to_path_buf()];
-
-        // Try to find git repository root
-        if let Some(git_root) = crate::cli::run::helpers::find_repository_root(current_dir) {
-            // Add parent directories up to git root
-            let mut dir = current_dir.to_path_buf();
-            while let Some(parent) = dir.parent() {
-                if parent == git_root {
-                    if !dirs.contains(&git_root) {
-                        dirs.push(git_root.clone());
-                    }
-                    break;
-                }
-                if !dirs.contains(&parent.to_path_buf()) {
-                    dirs.push(parent.to_path_buf());
-                }
-                dir = parent.to_path_buf();
-            }
-        }
-
-        Ok(dirs)
-    }
-
-    /// Change working directory to the directory containing the config file
-    fn change_to_config_directory(config_path: &Path, original_dir: &Path) -> Result<()> {
-        let config_dir = config_path
-            .parent()
-            .context("Config file has no parent directory")?;
-
-        if config_dir != original_dir {
-            std::env::set_current_dir(config_dir)?;
-            debug!(
-                "Changed working directory from {} to {}",
-                original_dir.display(),
-                config_dir.display()
-            );
-        }
-
-        Ok(())
-    }
-
     /// Load and parse config from a specific path
-    fn load_from_path(path: &Path) -> Result<Self> {
+    pub(crate) fn load_from_path(path: &Path) -> Result<Self> {
         let config_content = fs::read(path)
             .with_context(|| format!("Failed to read config file at {}", path.display()))?;
 

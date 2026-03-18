@@ -15,7 +15,7 @@ use crate::{
     config::CodSpeedConfig,
     local_logger::{CODSPEED_U8_COLOR_CODE, init_local_logger},
     prelude::*,
-    project_config::ProjectConfig,
+    project_config::DiscoveredProjectConfig,
 };
 use clap::{
     Parser, Subcommand,
@@ -97,9 +97,11 @@ pub async fn run() -> Result<()> {
         CodSpeedConfig::load_with_override(cli.config_name.as_deref(), cli.oauth_token.as_deref())?;
     let api_client = CodSpeedAPIClient::try_from((&cli, &codspeed_config))?;
 
-    // Discover project configuration file (this may change the working directory)
-    let project_config =
-        ProjectConfig::discover_and_load(cli.config.as_deref(), &std::env::current_dir()?)?;
+    // Discover project configuration file
+    let discovered_config = DiscoveredProjectConfig::discover_and_load(
+        cli.config.as_deref(),
+        &std::env::current_dir()?,
+    )?;
 
     // In the context of the CI, it is likely that a ~ made its way here without being expanded by the shell
     let setup_cache_dir = cli
@@ -121,7 +123,7 @@ pub async fn run() -> Result<()> {
                 *args,
                 &api_client,
                 &codspeed_config,
-                project_config.as_ref(),
+                discovered_config.as_ref(),
                 setup_cache_dir,
             )
             .await?
@@ -131,7 +133,7 @@ pub async fn run() -> Result<()> {
                 *args,
                 &api_client,
                 &codspeed_config,
-                project_config.as_ref(),
+                discovered_config.as_ref().map(|d| &d.config),
                 setup_cache_dir,
             )
             .await?

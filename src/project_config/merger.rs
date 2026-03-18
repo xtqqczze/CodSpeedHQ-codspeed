@@ -41,18 +41,12 @@ impl ConfigMerger {
     /// Note: Some fields like upload_url, token, repository are CLI-only and not in config.
     pub fn merge_shared_args(
         cli: &ExecAndRunSharedArgs,
-        config_opts: Option<&ProjectOptions>,
+        _config_opts: Option<&ProjectOptions>,
     ) -> ExecAndRunSharedArgs {
-        let mut merged = cli.clone();
-
-        // Merge working_directory if not set via CLI
-        if merged.working_directory.is_none() {
-            if let Some(opts) = config_opts {
-                merged.working_directory = opts.working_directory.clone();
-            }
-        }
-
-        merged
+        // Note: working_directory is NOT merged here because config paths need to be
+        // resolved relative to the config file directory. This resolution is handled
+        // by the caller (e.g., `codspeed run`) which has access to the config file path.
+        cli.clone()
     }
 
     /// Helper to merge Option values with precedence: CLI > config > None
@@ -66,6 +60,29 @@ mod tests {
     use super::*;
     use crate::cli::PerfRunArgs;
     use crate::runner_mode::RunnerMode;
+
+    fn make_cli(working_directory: Option<&str>) -> ExecAndRunSharedArgs {
+        ExecAndRunSharedArgs {
+            upload_url: None,
+            token: None,
+            repository: None,
+            provider: None,
+            working_directory: working_directory.map(|s| s.to_string()),
+            mode: vec![RunnerMode::Walltime],
+            simulation_tool: None,
+            profile_folder: None,
+            skip_upload: false,
+            skip_run: false,
+            skip_setup: false,
+            allow_empty: false,
+            go_runner_version: None,
+            show_full_output: false,
+            perf_run_args: PerfRunArgs {
+                enable_perf: true,
+                perf_unwinding_mode: None,
+            },
+        }
+    }
 
     #[test]
     fn test_merge_walltime_all_from_cli() {
@@ -146,27 +163,7 @@ mod tests {
 
     #[test]
     fn test_merge_shared_args_working_directory_from_cli() {
-        let cli = ExecAndRunSharedArgs {
-            upload_url: None,
-            token: None,
-            repository: None,
-            provider: None,
-            working_directory: Some("./cli-dir".to_string()),
-            mode: vec![RunnerMode::Walltime],
-            simulation_tool: None,
-            profile_folder: None,
-            skip_upload: false,
-            skip_run: false,
-            skip_setup: false,
-            allow_empty: false,
-            go_runner_version: None,
-            show_full_output: false,
-            perf_run_args: PerfRunArgs {
-                enable_perf: true,
-                perf_unwinding_mode: None,
-            },
-        };
-
+        let cli = make_cli(Some("./cli-dir"));
         let config = ProjectOptions {
             walltime: None,
             working_directory: Some("./config-dir".to_string()),
@@ -179,28 +176,8 @@ mod tests {
     }
 
     #[test]
-    fn test_merge_shared_args_working_directory_from_config() {
-        let cli = ExecAndRunSharedArgs {
-            upload_url: None,
-            token: None,
-            repository: None,
-            provider: None,
-            working_directory: None,
-            mode: vec![RunnerMode::Walltime],
-            simulation_tool: None,
-            profile_folder: None,
-            skip_upload: false,
-            skip_run: false,
-            skip_setup: false,
-            allow_empty: false,
-            go_runner_version: None,
-            show_full_output: false,
-            perf_run_args: PerfRunArgs {
-                enable_perf: true,
-                perf_unwinding_mode: None,
-            },
-        };
-
+    fn test_merge_shared_args_working_directory_not_merged_from_config() {
+        let cli = make_cli(None);
         let config = ProjectOptions {
             walltime: None,
             working_directory: Some("./config-dir".to_string()),
@@ -208,40 +185,21 @@ mod tests {
 
         let merged = ConfigMerger::merge_shared_args(&cli, Some(&config));
 
-        // Config working_directory should be used
-        assert_eq!(merged.working_directory, Some("./config-dir".to_string()));
+        // Config working_directory is NOT merged — resolution is handled by the caller
+        // relative to the config file directory.
+        assert_eq!(merged.working_directory, None);
         // Mode stays as CLI value
         assert_eq!(merged.mode, vec![RunnerMode::Walltime]);
     }
 
     #[test]
     fn test_merge_shared_args_no_config() {
-        let cli = ExecAndRunSharedArgs {
-            upload_url: None,
-            token: None,
-            repository: None,
-            provider: None,
-            working_directory: Some("./dir".to_string()),
-            mode: vec![RunnerMode::Simulation],
-            simulation_tool: None,
-            profile_folder: None,
-            skip_upload: false,
-            skip_run: false,
-            skip_setup: false,
-            allow_empty: false,
-            go_runner_version: None,
-            show_full_output: false,
-            perf_run_args: PerfRunArgs {
-                enable_perf: false,
-                perf_unwinding_mode: None,
-            },
-        };
+        let cli = make_cli(Some("./dir"));
 
         let merged = ConfigMerger::merge_shared_args(&cli, None);
 
         // Should be identical to CLI
         assert_eq!(merged.working_directory, Some("./dir".to_string()));
-        assert_eq!(merged.mode, vec![RunnerMode::Simulation]);
     }
 
     #[test]
