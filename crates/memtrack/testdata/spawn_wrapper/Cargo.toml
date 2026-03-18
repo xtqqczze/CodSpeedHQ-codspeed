@@ -1,0 +1,17 @@
+[workspace]
+
+[package]
+name = "spawn_wrapper"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "wrapper"
+path = "src/bin/wrapper.rs"
+
+[[bin]]
+name = "alloc_child"
+path = "src/bin/alloc_child.rs"
+
+[dependencies]
+jemallocator = { version = "0.5" }
