@@ -100,15 +100,49 @@ macro_rules! assert_events_with_marker {
     }};
 }
 
-pub fn track_binary_with_opts(binary: &Path, extra_allocators: &[AllocatorLib]) -> TrackResult {
+/// Compile a Rust binary from a test crate directory.
+pub fn compile_rust_binary(
+    crate_dir: &Path,
+    name: &str,
+    features: &[&str],
+) -> anyhow::Result<std::path::PathBuf> {
+    let mut cmd = Command::new("cargo");
+    cmd.current_dir(crate_dir)
+        .args(["build", "--release", "--bin", name]);
+
+    if !features.is_empty() {
+        cmd.arg("--features").arg(features.join(","));
+    }
+
+    let output = cmd.output()?;
+    if !output.status.success() {
+        eprintln!("cargo stderr: {}", String::from_utf8_lossy(&output.stderr));
+        eprintln!("cargo stdout: {}", String::from_utf8_lossy(&output.stdout));
+        return Err(anyhow::anyhow!("Failed to compile Rust crate"));
+    }
+
+    Ok(crate_dir.join(format!("target/release/{name}")))
+}
+
+/// Track a spawned command, collecting all memory events.
+///
+/// When `discover_system_allocators` is true, the tracker will scan for all
+/// allocators on the system (slower). When false, only `extra_allocators` are used.
+pub fn track_command(
+    mut command: Command,
+    extra_allocators: &[AllocatorLib],
+    discover_system_allocators: bool,
+) -> TrackResult {
     // IMPORTANT: Always initialize the tracker BEFORE spawning the binary, as it can take some time to
     // attach to all the allocator libraries (especially when using NixOS).
-    let mut tracker = memtrack::Tracker::new()?;
+    let mut tracker = if discover_system_allocators {
+        memtrack::Tracker::new()?
+    } else {
+        memtrack::Tracker::new_without_allocators()?
+    };
     tracker.attach_allocators(extra_allocators)?;
 
-    let child = Command::new(binary)
-        .spawn()
-        .context("Failed to spawn command")?;
+    let child = command.spawn().context("Failed to spawn command")?;
     let root_pid = child.id() as i32;
 
     tracker.enable()?;
@@ -126,6 +160,10 @@ pub fn track_binary_with_opts(binary: &Path, extra_allocators: &[AllocatorLib]) 
     trace!("Events: {events:#?}");
 
     Ok((events, thread_handle))
+}
+
+pub fn track_binary_with_opts(binary: &Path, extra_allocators: &[AllocatorLib]) -> TrackResult {
+    track_command(Command::new(binary), extra_allocators, true)
 }
 
 pub fn track_binary(binary: &Path) -> TrackResult {
