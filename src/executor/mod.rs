@@ -114,7 +114,7 @@ pub async fn run_executor(
                 None
             };
 
-        let run_result = executor.run(execution_context, &mongo_tracer).await;
+        executor.run(execution_context, &mongo_tracer).await?;
 
         // TODO: refactor and move directly in the Instruments struct as a `stop` method
         if let Some(mut mongo_tracer) = mongo_tracer {
@@ -122,9 +122,6 @@ pub async fn run_executor(
         }
         debug!("Tearing down the executor");
         executor.teardown(execution_context).await?;
-
-        // Propagate any run error after cleanup
-        run_result?;
 
         orchestrator
             .logger
