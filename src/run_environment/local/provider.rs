@@ -4,7 +4,7 @@ use simplelog::SharedLogger;
 use uuid::Uuid;
 
 use crate::api_client::{CodSpeedAPIClient, GetOrCreateProjectRepositoryVars, GetRepositoryVars};
-use crate::cli::run::helpers::{GitRemote, find_repository_root, parse_git_remote};
+use crate::cli::run::helpers::{find_repository_root, parse_repository_from_remote};
 use crate::executor::config::OrchestratorConfig;
 use crate::executor::config::RepositoryOverride;
 use crate::local_logger::get_local_logger;
@@ -166,8 +166,8 @@ impl LocalProvider {
         ))?;
 
         let remote = git_repository.find_remote("origin")?;
-        let (provider, owner, name) =
-            extract_provider_owner_and_repository_from_remote_url(remote.url().unwrap())?;
+        let parsed = parse_repository_from_remote(remote.url().unwrap())?;
+        let (provider, owner, name) = (parsed.provider, parsed.owner, parsed.name);
 
         // Check if repository exists in CodSpeed
         // Note: we only check existence here, we don't check that
@@ -305,93 +305,12 @@ impl RunEnvironmentProvider for LocalProvider {
     }
 }
 
-fn extract_provider_owner_and_repository_from_remote_url(
-    remote_url: &str,
-) -> Result<(RepositoryProvider, String, String)> {
-    let GitRemote {
-        domain,
-        owner,
-        repository,
-    } = parse_git_remote(remote_url)?;
-    let repository_provider = match domain.as_str() {
-        "github.com" => RepositoryProvider::GitHub,
-        "gitlab.com" => RepositoryProvider::GitLab,
-        domain => bail!("Repository provider {domain} is not supported by CodSpeed"),
-    };
-
-    Ok((
-        repository_provider,
-        owner.to_string(),
-        repository.to_string(),
-    ))
-}
-
 #[cfg(test)]
 mod tests {
-    // use crate::VERSION;
-    // use insta::assert_json_snapshot;
-
     use super::*;
-
-    #[test]
-    fn test_extract_provider_owner_and_repository_from_remote_url() {
-        let remote_urls = [
-            (
-                "git@github.com:CodSpeedHQ/codspeed.git",
-                RepositoryProvider::GitHub,
-                "CodSpeedHQ",
-                "codspeed",
-            ),
-            (
-                "https://github.com/CodSpeedHQ/codspeed.git",
-                RepositoryProvider::GitHub,
-                "CodSpeedHQ",
-                "codspeed",
-            ),
-            (
-                "git@gitlab.com:codspeed/runner.git",
-                RepositoryProvider::GitLab,
-                "codspeed",
-                "runner",
-            ),
-            (
-                "https://gitlab.com/codspeed/runner.git",
-                RepositoryProvider::GitLab,
-                "codspeed",
-                "runner",
-            ),
-        ];
-        for (remote_url, expected_provider, expected_owner, expected_repository) in
-            remote_urls.into_iter()
-        {
-            let (repository_provider, owner, repository) =
-                extract_provider_owner_and_repository_from_remote_url(remote_url).unwrap();
-            assert_eq!(repository_provider, expected_provider);
-            assert_eq!(owner, expected_owner);
-            assert_eq!(repository, expected_repository);
-        }
-    }
 
     #[test]
     fn fake_commit_hash_ref() {
         assert_eq!(FAKE_COMMIT_REF.len(), 40);
     }
-
-    // TODO: uncomment later when we have a way to mock git repository
-    // #[test]
-    // fn test_provider_metadata() {
-    //     let config = OrchestratorConfig {
-    //         token: Some("token".into()),
-    //         ..OrchestratorConfig::test()
-    //     };
-    //     let local_provider = LocalProvider::try_from(&config).unwrap();
-    //     let provider_metadata = local_provider.get_provider_metadata().unwrap();
-
-    //     assert_json_snapshot!(provider_metadata, {
-    //         ".runner.version" => insta::dynamic_redaction(|value,_path| {
-    //             assert_eq!(value.as_str().unwrap(), VERSION.to_string());
-    //             "[version]"
-    //         }),
-    //     });
-    // }
 }
