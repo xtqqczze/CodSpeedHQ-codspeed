@@ -5,6 +5,61 @@
 
 
 
+## [4.12.0] - 2026-03-19
+
+### <!-- 0 -->🚀 Features
+- Set NODE_OPTIONS to get perf map from node by @GuillaumeLagrange in [#267](https://github.com/CodSpeedHQ/runner/pull/267)
+- Disable node instrospection for exec-harness by @GuillaumeLagrange
+- Support CODSPEED_MEMTRACK_BINARIES for static allocator discovery by @not-matthias
+- Gracefully handle logs from the runner while rolling buffer is active by @GuillaumeLagrange
+- Add `--show-full-output` to bypass the new rolling buffer by @GuillaumeLagrange
+- Add a spinner while waiting for results by @GuillaumeLagrange
+- Clean up group headers and emoji usage, make the executor title not dim after run by @GuillaumeLagrange
+- Add rolling buffer to display logs from executors by @GuillaumeLagrange
+- Polish impact reporting and upload feedback by @art049
+- Add color-coded metrics to benchmark result tables by @art049
+- Enhance local logger with richer visual hierarchy by @art049
+- Style the ASCII banner with CodSpeed orange by @GuillaumeLagrange
+- Enforce CodSpeed CLI as single source of truth for all measurements by @art049
+- Add optimize and setup-harness skills by @art049
+- Add the cursor plugin by @art049
+- Check if user is logged in before doing a local run by @GuillaumeLagrange in [#263](https://github.com/CodSpeedHQ/runner/pull/263)
+- Skip respository resolve with `--skip-upload` by @GuillaumeLagrange
+- Use an enum and fix schema for entry/entrypoint by @GuillaumeLagrange in [#260](https://github.com/CodSpeedHQ/runner/pull/260)
+- Accept a mix of entrypoint and exec targets in project config by @GuillaumeLagrange
+- Introduce OrchestratorConfig and ExecutorConfig by @GuillaumeLagrange
+- Unify run_part_id suffix computation between ci providers and local by @GuillaumeLagrange
+- Add the claude plugin by @art049
+- Add local_data to upload metadata by @GuillaumeLagrange
+- Use repositoryOverview resolver rather than repository by @GuillaumeLagrange
+
+### <!-- 1 -->🐛 Bug Fixes
+- Use fp unwinding mode when running `go test` by @GuillaumeLagrange in [#269](https://github.com/CodSpeedHQ/runner/pull/269)
+- Improve error message when no benchmarks are found by @GuillaumeLagrange in [#264](https://github.com/CodSpeedHQ/runner/pull/264)
+
+### <!-- 2 -->🏗️ Refactor
+- Extract shared test helpers for compile and track by @not-matthias
+- Pass extra env via config instead of unsafe set_var by @not-matthias
+- Remove the closure argument to poll in favor of polling options by @GuillaumeLagrange
+- Move EXEC_HARNESS_VERSION and EXEC_HARNESS_COMMAND to orchestrator mod by @GuillaumeLagrange
+- Flatten orchestrator execution loop over (command, mode) pairs by @GuillaumeLagrange
+- Introduce Orchestrator to support multi-mode execution by @GuillaumeLagrange in [#259](https://github.com/CodSpeedHQ/runner/pull/259)
+- Consolidate poll_results into upload module by @GuillaumeLagrange
+
+### <!-- 3 -->📚 Documentation
+- Add architecture graph by @GuillaumeLagrange
+
+### <!-- 6 -->🧪 Testing
+- Add spawn wrapper integration test for static allocator discovery by @not-matthias in [#266](https://github.com/CodSpeedHQ/runner/pull/266)
+
+### <!-- 7 -->⚙️ Internals
+- Bump linux-perf-data to use upstream version by @GuillaumeLagrange in [#271](https://github.com/CodSpeedHQ/runner/pull/271)
+- Remove lazy_static in favor of LazyLock by @GuillaumeLagrange in [#265](https://github.com/CodSpeedHQ/runner/pull/265)
+- Rename skill directories with codspeed prefix by @art049
+- Move architecture docs out of this repo by @GuillaumeLagrange in [#262](https://github.com/CodSpeedHQ/runner/pull/262)
+- Typo in plugin description by @art049
+
+
 ## [4.11.1] - 2026-02-26
 
 ### <!-- 7 -->⚙️ Internals
@@ -978,6 +1033,7 @@
 - Add linting components to the toolchain by @art049
 
 
+[4.12.0]: https://github.com/CodSpeedHQ/runner/compare/v4.11.1..v4.12.0
 [4.11.1]: https://github.com/CodSpeedHQ/runner/compare/v4.11.0..v4.11.1
 [4.11.0]: https://github.com/CodSpeedHQ/runner/compare/v4.10.6..v4.11.0
 [4.10.6]: https://github.com/CodSpeedHQ/runner/compare/v4.10.5..v4.10.6
