@@ -221,7 +221,7 @@ impl OrchestratorConfig {
             allow_empty: false,
             go_runner_version: None,
             show_full_output: false,
-            poll_results_options: PollResultsOptions::for_exec(),
+            poll_results_options: PollResultsOptions::new(false, None),
             extra_env: HashMap::new(),
         }
     }

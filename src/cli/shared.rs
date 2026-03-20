@@ -109,6 +109,10 @@ pub struct ExecAndRunSharedArgs {
     #[arg(long, default_value = "false")]
     pub show_full_output: bool,
 
+    /// Compare the results against this base run ID
+    #[arg(long)]
+    pub base: Option<String>,
+
     #[command(flatten)]
     pub perf_run_args: PerfRunArgs,
 }
