@@ -3,6 +3,7 @@ use crate::api_client::{
 };
 use crate::cli::run::helpers;
 use crate::executor::ExecutorName;
+use crate::local_logger::icons::Icon;
 use console::style;
 use std::collections::HashMap;
 use tabled::settings::object::{Columns, Rows};
@@ -92,9 +93,14 @@ struct MemoryRow {
     alloc_calls: String,
 }
 
-fn build_table_with_style<T: Tabled>(rows: &[T], instrument: &str, icon: &str) -> String {
+fn build_table_with_style<T: Tabled>(rows: &[T], instrument: &str, icon: Icon) -> String {
     // Line after panel header: use ┬ to connect with columns below
-    let header_line = HorizontalLine::full('─', '┬', '├', '┤');
+    let header_line = HorizontalLine::full(
+        Icon::BoxHorizontal.as_char(),
+        Icon::BoxTDown.as_char(),
+        Icon::BoxTRight.as_char(),
+        Icon::BoxTLeft.as_char(),
+    );
     // Line after column headers: keep intersection
     let column_line = HorizontalLine::inherit(Style::modern());
 
@@ -109,7 +115,7 @@ fn build_table_with_style<T: Tabled>(rows: &[T], instrument: &str, icon: &str) -
         .with(
             Style::rounded()
                 .remove_horizontals()
-                .intersection_top('─')
+                .intersection_top(Icon::BoxHorizontal.as_char())
                 .horizontals([(1, header_line), (2, column_line)]),
         )
         .with(Modify::new(Rows::first()).with(Alignment::center()))

@@ -11,6 +11,7 @@ use crate::api_client::{
     CodSpeedAPIClient, CompareRunsOutcome, CompareRunsResponse, CompareRunsVars,
     FetchLocalRunResponse, FetchLocalRunVars, RunStatus,
 };
+use crate::local_logger::icons::Icon;
 use crate::local_logger::{start_spinner, stop_spinner};
 use crate::prelude::*;
 
@@ -237,17 +238,17 @@ async fn display_comparison_results(
             let pct = impact * 100.0;
             let (arrow, impact_text) = if impact.abs() < benchmark_display::CHANGE_DISPLAY_EPSILON {
                 (
-                    style("\u{25CF}").dim(),
+                    style(Icon::ImpactNeutral.to_string()).dim(),
                     style(format!("{pct:.1}%")).dim().bold(),
                 )
             } else if impact > 0.0 {
                 (
-                    style("\u{f062}").green(),
+                    style(Icon::ImpactUp.to_string()).green(),
                     style(format!("+{pct:.1}%")).green().bold(),
                 )
             } else {
                 (
-                    style("\u{f063}").red(),
+                    style(Icon::ImpactDown.to_string()).red(),
                     style(format!("{pct:.1}%")).red().bold(),
                 )
             };

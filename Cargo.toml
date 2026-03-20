@@ -87,6 +87,7 @@ rstest_reuse = "0.7.0"
 shell-quote = "0.7.2"
 assert_cmd = "2.0.16"
 predicates = "3.1.4"
+strum = { version = "0.28.0", features = ["derive"] }
 
 [workspace]
 members = [

@@ -1,6 +1,7 @@
 use crate::VERSION;
 use crate::executor::config::SimulationTool;
 use crate::local_logger::CODSPEED_U8_COLOR_CODE;
+use crate::local_logger::icons::Icon;
 use crate::prelude::*;
 use crate::run_environment::interfaces::RepositoryProvider;
 use crate::runner_mode::{RunnerMode, load_shell_session_mode};
@@ -19,7 +20,7 @@ pub(crate) fn show_banner() {
 
     let version_tag = style(format!("v{VERSION}")).bold();
     let url = style("codspeed.io").color256(CODSPEED_U8_COLOR_CODE);
-    let separator = style("─".repeat(52)).dim();
+    let separator = style(Icon::Separator.to_string().repeat(52)).dim();
 
     eprintln!(
         "\n{}\n  {separator}\n  {url}  {version_tag}\n",
