@@ -4,12 +4,12 @@ use std::time::Duration;
 use console::style;
 use tokio::time::{Instant, sleep};
 
-use crate::api_client::{
-    CodSpeedAPIClient, CompareRunsResponse, CompareRunsVars, FetchLocalRunResponse,
-    FetchLocalRunVars, RunStatus,
+use super::benchmark_display::{
+    self, build_benchmark_table, build_comparison_table, build_detailed_summary,
 };
-use crate::cli::run::helpers::benchmark_display::{
-    build_benchmark_table, build_comparison_table, build_detailed_summary,
+use crate::api_client::{
+    CodSpeedAPIClient, CompareRunsOutcome, CompareRunsResponse, CompareRunsVars,
+    FetchLocalRunResponse, FetchLocalRunVars, RunStatus,
 };
 use crate::local_logger::{start_spinner, stop_spinner};
 use crate::prelude::*;

@@ -11,6 +11,9 @@ use tabled::settings::style::HorizontalLine;
 use tabled::settings::{Alignment, Color, Modify, Padding, Style};
 use tabled::{Table, Tabled};
 
+/// Changes below this threshold are displayed as "~0%" to avoid noise.
+pub(super) const CHANGE_DISPLAY_EPSILON: f64 = 0.005;
+
 fn format_with_thousands_sep(n: u64) -> String {
     let s = n.to_string();
     let mut result = String::new();
@@ -366,15 +369,15 @@ pub fn build_comparison_table(results: &[CompareRunsBenchmarkResult]) -> String 
                     };
 
                     let change_str = match result.change {
+                        Some(c) if c.abs() < CHANGE_DISPLAY_EPSILON => {
+                            format!("{}", style(format!("{:.1}%", c * 100.0)).dim())
+                        }
                         Some(c) if c > 0.0 => {
-                            let pct = (c * 100.0).round();
-                            format!("{}", style(format!("+{pct}%")).red().bold())
+                            format!("{}", style(format!("+{:.1}%", c * 100.0)).green().bold())
                         }
-                        Some(c) if c < 0.0 => {
-                            let pct = (c * 100.0).round();
-                            format!("{}", style(format!("{pct}%")).green().bold())
+                        Some(c) => {
+                            format!("{}", style(format!("{:.1}%", c * 100.0)).red().bold())
                         }
-                        Some(_) => format!("{}", style("0%").dim()),
                         None => "-".to_string(),
                     };
 

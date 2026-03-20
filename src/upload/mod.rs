@@ -1,3 +1,4 @@
+mod benchmark_display;
 mod interfaces;
 pub mod poll_results;
 mod profile_archive;
