@@ -5,6 +5,12 @@
 
 
 
+## [4.12.1] - 2026-03-20
+
+### <!-- 7 -->⚙️ Internals
+- Bump memtrack version
+
+
 ## [4.12.0] - 2026-03-19
 
 ### <!-- 0 -->🚀 Features
@@ -1033,6 +1039,7 @@
 - Add linting components to the toolchain by @art049
 
 
+[4.12.1]: https://github.com/CodSpeedHQ/runner/compare/v4.12.0..v4.12.1
 [4.12.0]: https://github.com/CodSpeedHQ/runner/compare/v4.11.1..v4.12.0
 [4.11.1]: https://github.com/CodSpeedHQ/runner/compare/v4.11.0..v4.11.1
 [4.11.0]: https://github.com/CodSpeedHQ/runner/compare/v4.10.6..v4.11.0
