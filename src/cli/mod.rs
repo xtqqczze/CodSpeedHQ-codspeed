@@ -4,6 +4,7 @@ pub(crate) mod run;
 mod setup;
 mod shared;
 mod show;
+mod update;
 mod use_mode;
 
 pub(crate) use shared::*;
@@ -89,6 +90,8 @@ enum Commands {
     Use(use_mode::UseArgs),
     /// Show the codspeed mode previously set in this shell session with `codspeed use`
     Show,
+    /// Update the CodSpeed CLI to the latest version
+    Update,
 }
 
 pub async fn run() -> Result<()> {
@@ -142,6 +145,7 @@ pub async fn run() -> Result<()> {
         Commands::Setup => setup::setup(setup_cache_dir).await?,
         Commands::Use(args) => use_mode::run(args)?,
         Commands::Show => show::run()?,
+        Commands::Update => update::run().await?,
     }
     Ok(())
 }

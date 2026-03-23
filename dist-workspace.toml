@@ -34,8 +34,8 @@ local-artifacts-jobs = ["./create-draft-release"]
 allow-dirty = ["ci"]
 
 [dist.github-action-commits]
-"actions/checkout" = "de0fac2e4500dabe0009e67214ff5f5447ce83dd" # v6.0.2
-"actions/upload-artifact" = "b7c566a772e6b6bfb58ed0dc250532a479d7789f" # v6.0.0
+"actions/checkout" = "de0fac2e4500dabe0009e67214ff5f5447ce83dd"          # v6.0.2
+"actions/upload-artifact" = "b7c566a772e6b6bfb58ed0dc250532a479d7789f"   # v6.0.0
 "actions/download-artifact" = "37930b1c2abaa49bbe596cd826c3c89aef350131" # v7.0.0
 
 [dist.github-custom-runners]
