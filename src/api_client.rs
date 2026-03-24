@@ -260,7 +260,7 @@ pub struct GetOrCreateProjectRepositoryVars {
 }
 
 nest! {
-    #[derive(Debug, Deserialize, Serialize)]*
+    #[derive(Debug, Deserialize, Serialize, Clone)]*
     #[serde(rename_all = "camelCase")]*
     struct GetOrCreateProjectRepositoryData {
         get_or_create_project_repository: pub struct GetOrCreateProjectRepositoryPayload {
@@ -280,7 +280,7 @@ pub struct GetRepositoryVars {
 }
 
 nest! {
-    #[derive(Debug, Deserialize, Serialize)]*
+    #[derive(Debug, Deserialize, Serialize, Clone)]*
     #[serde(rename_all = "camelCase")]*
     struct GetRepositoryData {
         repository_overview: Option<pub struct GetRepositoryPayload {

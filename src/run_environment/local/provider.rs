@@ -3,7 +3,10 @@ use git2::Repository;
 use simplelog::SharedLogger;
 use uuid::Uuid;
 
-use crate::api_client::{CodSpeedAPIClient, GetOrCreateProjectRepositoryVars, GetRepositoryVars};
+use crate::api_client::{
+    CodSpeedAPIClient, GetOrCreateProjectRepositoryPayload, GetOrCreateProjectRepositoryVars,
+    GetRepositoryPayload, GetRepositoryVars,
+};
 use crate::cli::run::helpers::{find_repository_root, parse_repository_from_remote};
 use crate::executor::config::OrchestratorConfig;
 use crate::executor::config::RepositoryOverride;
@@ -48,7 +51,10 @@ struct ResolvedRepository {
 }
 
 impl LocalProvider {
-    pub async fn new(config: &OrchestratorConfig, api_client: &CodSpeedAPIClient) -> Result<Self> {
+    pub async fn new(
+        config: &OrchestratorConfig,
+        api_client: &impl LocalProviderApiClient,
+    ) -> Result<Self> {
         let current_dir = std::env::current_dir()?;
         let git_context = Self::find_git_context(&current_dir);
 
@@ -115,7 +121,7 @@ impl LocalProvider {
     ///    b. NOT logged in: `get_or_create_project_repository` fails, bail with "session expired"
     async fn resolve_repository(
         config: &OrchestratorConfig,
-        api_client: &CodSpeedAPIClient,
+        api_client: &impl LocalProviderApiClient,
         git_context: Option<&GitContext>,
     ) -> Result<ResolvedRepository> {
         // Priority 1: Use explicit repository override
@@ -157,7 +163,7 @@ impl LocalProvider {
 
     /// Try to resolve repository from git remote, validating it exists in CodSpeed
     async fn try_resolve_from_codspeed_repository(
-        api_client: &CodSpeedAPIClient,
+        api_client: &impl LocalProviderApiClient,
         git_context: &GitContext,
     ) -> Result<Option<ResolvedRepository>> {
         let git_repository = Repository::open(&git_context.root_path).context(format!(
@@ -203,7 +209,7 @@ impl LocalProvider {
 
     /// Resolve repository by creating/getting a project repository
     async fn resolve_as_project_repository(
-        api_client: &CodSpeedAPIClient,
+        api_client: &impl LocalProviderApiClient,
     ) -> Result<ResolvedRepository> {
         let project_name = crate::cli::exec::DEFAULT_REPOSITORY_NAME;
 
@@ -305,6 +311,34 @@ impl RunEnvironmentProvider for LocalProvider {
     }
 }
 
+#[async_trait(?Send)]
+pub trait LocalProviderApiClient {
+    async fn get_repository(&self, vars: GetRepositoryVars)
+    -> Result<Option<GetRepositoryPayload>>;
+
+    async fn get_or_create_project_repository(
+        &self,
+        vars: GetOrCreateProjectRepositoryVars,
+    ) -> Result<GetOrCreateProjectRepositoryPayload>;
+}
+
+#[async_trait(?Send)]
+impl LocalProviderApiClient for CodSpeedAPIClient {
+    async fn get_repository(
+        &self,
+        vars: GetRepositoryVars,
+    ) -> Result<Option<GetRepositoryPayload>> {
+        self.get_repository(vars).await
+    }
+
+    async fn get_or_create_project_repository(
+        &self,
+        vars: GetOrCreateProjectRepositoryVars,
+    ) -> Result<GetOrCreateProjectRepositoryPayload> {
+        self.get_or_create_project_repository(vars).await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -312,5 +346,194 @@ mod tests {
     #[test]
     fn fake_commit_hash_ref() {
         assert_eq!(FAKE_COMMIT_REF.len(), 40);
+    }
+
+    fn create_git_repo_with_remote(dir: &std::path::Path, remote_url: &str) -> String {
+        std::process::Command::new("git")
+            .args(["init", "-b", "main"])
+            .current_dir(dir)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.email", "test@test.com"])
+            .current_dir(dir)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.name", "Test"])
+            .current_dir(dir)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["remote", "add", "origin", remote_url])
+            .current_dir(dir)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "--allow-empty", "-m", "init"])
+            .current_dir(dir)
+            .output()
+            .unwrap();
+
+        format!("{}/", dir.to_string_lossy())
+    }
+
+    /// A mock API client that returns a found repository for `get_repository`
+    /// and a fixed project repository for `get_or_create_project_repository`.
+    struct MockApiClientRepoFound;
+
+    impl MockApiClientRepoFound {
+        fn new() -> Self {
+            Self
+        }
+    }
+
+    #[async_trait(?Send)]
+    impl LocalProviderApiClient for MockApiClientRepoFound {
+        async fn get_repository(
+            &self,
+            _vars: GetRepositoryVars,
+        ) -> Result<Option<GetRepositoryPayload>> {
+            Ok(Some(GetRepositoryPayload {
+                id: "my-repo-id".into(),
+            }))
+        }
+
+        async fn get_or_create_project_repository(
+            &self,
+            _vars: GetOrCreateProjectRepositoryVars,
+        ) -> Result<GetOrCreateProjectRepositoryPayload> {
+            unreachable!("should not be called when repo is found")
+        }
+    }
+
+    /// A mock API client that returns no repository for `get_repository`,
+    /// falling back to a fixed project repository.
+    struct MockApiClientRepoNotFound;
+
+    impl MockApiClientRepoNotFound {
+        fn new() -> Self {
+            Self
+        }
+    }
+
+    #[async_trait(?Send)]
+    impl LocalProviderApiClient for MockApiClientRepoNotFound {
+        async fn get_repository(
+            &self,
+            _vars: GetRepositoryVars,
+        ) -> Result<Option<GetRepositoryPayload>> {
+            Ok(None)
+        }
+
+        async fn get_or_create_project_repository(
+            &self,
+            _vars: GetOrCreateProjectRepositoryVars,
+        ) -> Result<GetOrCreateProjectRepositoryPayload> {
+            Ok(GetOrCreateProjectRepositoryPayload {
+                provider: RepositoryProvider::GitHub,
+                owner: "CodSpeedHQ".into(),
+                name: "local-runs".into(),
+            })
+        }
+    }
+
+    async fn build_provider_for_test(
+        config: &OrchestratorConfig,
+        api_client: &impl LocalProviderApiClient,
+        root_path: &str,
+    ) -> LocalProvider {
+        let git_context = Some(GitContext {
+            root_path: root_path.to_string(),
+        });
+
+        let resolved = LocalProvider::resolve_repository(config, api_client, git_context.as_ref())
+            .await
+            .unwrap();
+
+        LocalProvider {
+            repository_provider: resolved.provider,
+            owner: resolved.owner,
+            repository: resolved.name,
+            ref_: resolved.ref_,
+            head_ref: resolved.head_ref,
+            repository_root_path: root_path.to_string(),
+            event: RunEvent::Local,
+            run_id: "test-run-id".to_string(),
+            expected_run_parts_count: config.expected_run_parts_count(),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_new_with_github_remote_found_on_codspeed() {
+        let dir = tempfile::tempdir().unwrap();
+        let root_path =
+            create_git_repo_with_remote(dir.path(), "git@github.com:my-repo/my-owner.git");
+
+        let config = OrchestratorConfig::test();
+        let provider =
+            build_provider_for_test(&config, &MockApiClientRepoFound::new(), &root_path).await;
+
+        let run_environment_metadata = provider.get_run_environment_metadata().unwrap();
+        let run_part = provider.get_run_provider_run_part().unwrap();
+
+        insta::assert_json_snapshot!(run_environment_metadata, {
+            ".ref" => "[commit_hash]",
+            ".repositoryRootPath" => "[root_path]",
+        });
+        insta::assert_json_snapshot!(run_part);
+    }
+
+    #[tokio::test]
+    async fn test_new_falls_back_to_project_repository() {
+        let dir = tempfile::tempdir().unwrap();
+        let root_path = create_git_repo_with_remote(dir.path(), "git@github.com:foobar/baz.git");
+
+        let config = OrchestratorConfig::test();
+        let provider =
+            build_provider_for_test(&config, &MockApiClientRepoNotFound::new(), &root_path).await;
+
+        let run_environment_metadata = provider.get_run_environment_metadata().unwrap();
+        let run_part = provider.get_run_provider_run_part().unwrap();
+
+        insta::assert_json_snapshot!(run_environment_metadata, {
+            ".repositoryRootPath" => "[root_path]",
+        });
+        insta::assert_json_snapshot!(run_part);
+    }
+
+    #[tokio::test]
+    async fn test_new_without_git_repository() {
+        let dir = tempfile::tempdir().unwrap();
+        let root_path = format!("{}/", dir.path().to_string_lossy());
+
+        let config = OrchestratorConfig::test();
+        let git_context: Option<GitContext> = None;
+        let resolved = LocalProvider::resolve_repository(
+            &config,
+            &MockApiClientRepoNotFound::new(),
+            git_context.as_ref(),
+        )
+        .await
+        .unwrap();
+        let provider = LocalProvider {
+            repository_provider: resolved.provider,
+            owner: resolved.owner,
+            repository: resolved.name,
+            ref_: resolved.ref_,
+            head_ref: resolved.head_ref,
+            repository_root_path: root_path.clone(),
+            event: RunEvent::Local,
+            run_id: "test-run-id".to_string(),
+            expected_run_parts_count: config.expected_run_parts_count(),
+        };
+
+        let run_environment_metadata = provider.get_run_environment_metadata().unwrap();
+        let run_part = provider.get_run_provider_run_part().unwrap();
+
+        insta::assert_json_snapshot!(run_environment_metadata, {
+            ".repositoryRootPath" => "[root_path]",
+        });
+        insta::assert_json_snapshot!(run_part);
     }
 }
