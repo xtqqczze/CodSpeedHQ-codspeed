@@ -89,6 +89,7 @@ fn build_orchestrator_config(
         show_full_output: args.shared.show_full_output,
         poll_results_options,
         extra_env: HashMap::new(),
+        fair_sched: args.shared.experimental.experimental_fair_sched,
     })
 }
 
