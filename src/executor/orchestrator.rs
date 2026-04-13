@@ -11,7 +11,7 @@ use crate::local_logger::rolling_buffer::{activate_rolling_buffer, deactivate_ro
 use crate::prelude::*;
 use crate::run_environment::{self, RunEnvironment, RunEnvironmentProvider};
 use crate::runner_mode::RunnerMode;
-use crate::system::{self, SystemInfo};
+use crate::system::SystemInfo;
 use crate::upload::poll_results::poll_results;
 use crate::upload::{UploadResult, upload};
 use serde_json::Value;
@@ -43,7 +43,6 @@ impl Orchestrator {
     ) -> Result<Self> {
         let provider = run_environment::get_provider(&config, api_client).await?;
         let system_info = SystemInfo::new()?;
-        system::check_system(&system_info)?;
         let logger = Logger::new(provider.as_ref())?;
 
         if provider.get_run_environment() == RunEnvironment::Local {
