@@ -47,10 +47,13 @@ pub fn get_base_injected_env(
     // - PreserveFramePointer: Preserves frame pointers for profiling.
     // - DumpPerfMapAtExit: Writes /tmp/perf-<pid>.map on JVM exit for symbol resolution.
     // - DebugNonSafepoints: Enables debug info for JIT-compiled non-safepoint code.
+    // - EnableDynamicAgentLoading: Suppresses warning when loading JVMTI agents at runtime.
+    // - jdk.attach.allowAttachSelf: Allows the JVM to attach a JVMTI agent to itself
+    //   (used by codspeed-jvm's perf-map agent for @Fork(0) benchmarks).
     if mode == RunnerMode::Walltime {
         env.insert(
             "JAVA_TOOL_OPTIONS".into(),
-            "-XX:+PreserveFramePointer -XX:+UnlockDiagnosticVMOptions -XX:+DumpPerfMapAtExit -XX:+DebugNonSafepoints".into(),
+            "-XX:+PreserveFramePointer -XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints -XX:+EnableDynamicAgentLoading -Djdk.attach.allowAttachSelf=true".into(),
         );
     }
 
