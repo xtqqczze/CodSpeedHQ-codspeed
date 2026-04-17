@@ -5,6 +5,28 @@
 
 
 
+## [4.14.0] - 2026-04-17
+
+### <!-- 0 -->🚀 Features
+- Stop panicking when parsing invalid perf file by @GuillaumeLagrange in [#298](https://github.com/CodSpeedHQ/runner/pull/298)
+- Make the basic run only 5 rounds to make logs not crash the github page by @GuillaumeLagrange
+- Represent the host OS as a  SupportedOs enum with per-executor support gates by @GuillaumeLagrange
+- Bypass systemd-run usage on macos by @GuillaumeLagrange
+- Add aarch64-apple-darwin to the release targets by @GuillaumeLagrange
+- Collect cpu flags in system info by @GuillaumeLagrange in [#281](https://github.com/CodSpeedHQ/runner/pull/281)
+
+### <!-- 1 -->🐛 Bug Fixes
+- Fix instropected_go's behavior on macos by @GuillaumeLagrange
+- Update rust crate git2 to 0.20.4 (#284) by @xtqqczze in [#284](https://github.com/CodSpeedHQ/runner/pull/284)
+
+### <!-- 7 -->⚙️ Internals
+- Move the config schema check from pre-commit to ci-only check by @GuillaumeLagrange in [#287](https://github.com/CodSpeedHQ/runner/pull/287)
+- Skip tests that rely on linux behavior by @GuillaumeLagrange
+- Bump instrument-hooks submodule to include stubs improvement by @GuillaumeLagrange
+- Rerun exec harness build if instrument hooks sources change by @GuillaumeLagrange
+- Make update-bindings.sh PWD agnostic by @GuillaumeLagrange
+
+
 ## [4.13.0] - 2026-03-26
 
 ### <!-- 0 -->🚀 Features
@@ -1071,6 +1093,7 @@
 - Add linting components to the toolchain by @art049
 
 
+[4.14.0]: https://github.com/CodSpeedHQ/runner/compare/v4.13.0..v4.14.0
 [4.13.0]: https://github.com/CodSpeedHQ/runner/compare/v4.12.1..v4.13.0
 [4.12.1]: https://github.com/CodSpeedHQ/runner/compare/v4.12.0..v4.12.1
 [4.12.0]: https://github.com/CodSpeedHQ/runner/compare/v4.11.1..v4.12.0
