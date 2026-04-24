@@ -163,7 +163,12 @@ impl Executor for WallTimeExecutor {
                 )
                 .await
             } else {
-                let cmd = wrap_with_sudo(cmd_builder)?.build();
+                let cmd_builder = if cfg!(target_os = "linux") {
+                    wrap_with_sudo(cmd_builder)?
+                } else {
+                    cmd_builder
+                };
+                let cmd = cmd_builder.build();
                 debug!("cmd: {cmd:?}");
                 run_command_with_log_pipe(cmd).await
             }
