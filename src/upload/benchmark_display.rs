@@ -29,6 +29,9 @@ fn format_with_thousands_sep(n: u64) -> String {
 
 /// Format StdDev with color coding based on value
 fn format_stdev_colored(stdev_pct: f64) -> String {
+    if !stdev_pct.is_finite() {
+        return format!("{}", style("N/A").dim());
+    }
     let formatted = format!("{stdev_pct:.2}%");
     if stdev_pct <= 2.0 {
         format!("{}", style(&formatted).green())
