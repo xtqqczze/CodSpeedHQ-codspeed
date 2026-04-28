@@ -19,7 +19,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 pub const EXEC_HARNESS_COMMAND: &str = "exec-harness";
-pub const EXEC_HARNESS_VERSION: &str = "1.2.0";
+pub const EXEC_HARNESS_VERSION: &str = "1.3.0";
 
 /// Shared orchestration state created once per CLI invocation.
 ///
