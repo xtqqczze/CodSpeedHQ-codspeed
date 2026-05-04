@@ -126,3 +126,19 @@ jobs:
         with:
           mode: simulation
           run: cargo codspeed run -p runner-shared
+
+  check:
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - lint
+      - tests
+      - exec-harness-tests
+      - basic-run-test
+      - macos-basic-run-test
+      - bpf-tests
+      - benchmarks
+    steps:
+      - uses: re-actors/alls-green@release/v1
+        with:
+          jobs: ${{ toJson( needs ) }}
