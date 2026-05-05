@@ -62,6 +62,7 @@ futures = "0.3.31"
 runner-shared = { path = "crates/runner-shared" }
 memtrack = { path = "crates/memtrack", default-features = false }
 exec-harness = { path = "crates/exec-harness" }
+instrument-hooks-bindings = { path = "crates/instrument-hooks-bindings" }
 ipc-channel = "0.18"
 shellexpand = { version = "3.1.1", features = ["tilde"] }
 addr2line = "0.25"

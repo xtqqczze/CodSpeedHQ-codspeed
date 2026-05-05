@@ -1,7 +1,6 @@
 use crate::prelude::*;
 use anyhow::Context;
 use futures::StreamExt;
-use nix::{sys::time::TimeValLike, time::clock_gettime};
 use runner_shared::artifacts::ExecutionTimestamps;
 use runner_shared::fifo::{Command as FifoCommand, MarkerType};
 use runner_shared::fifo::{RUNNER_ACK_FIFO, RUNNER_CTL_FIFO};
@@ -176,11 +175,9 @@ impl RunnerFifo {
 
         let mut integration = None;
 
-        let current_time = || {
-            clock_gettime(nix::time::ClockId::CLOCK_MONOTONIC)
-                .unwrap()
-                .num_nanoseconds() as u64
-        };
+        // Must match the clock used by the benchmarked process so timestamps
+        // from both sides are comparable.
+        let get_current_time = instrument_hooks_bindings::InstrumentHooks::current_timestamp;
 
         let mut benchmark_started = false;
 
@@ -209,14 +206,14 @@ impl RunnerFifo {
                 // Fall through to shared implementation for standard commands
                 match &cmd {
                     FifoCommand::CurrentBenchmark { pid, uri } => {
-                        bench_order_by_timestamp.push((current_time(), uri.to_string()));
+                        bench_order_by_timestamp.push((get_current_time(), uri.to_string()));
                         bench_pids.insert(*pid);
                         self.send_cmd(FifoCommand::Ack).await?;
                     }
                     FifoCommand::StartBenchmark => {
                         if !benchmark_started {
                             benchmark_started = true;
-                            markers.push(MarkerType::SampleStart(current_time()));
+                            markers.push(MarkerType::SampleStart(get_current_time()));
                         } else {
                             warn!("Received duplicate StartBenchmark command, ignoring");
                         }
@@ -225,7 +222,7 @@ impl RunnerFifo {
                     FifoCommand::StopBenchmark => {
                         if benchmark_started {
                             benchmark_started = false;
-                            markers.push(MarkerType::SampleEnd(current_time()));
+                            markers.push(MarkerType::SampleEnd(get_current_time()));
                         } else {
                             warn!("Received StopBenchmark command before StartBenchmark, ignoring");
                         }
