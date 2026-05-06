@@ -5,6 +5,24 @@
 
 
 
+## [4.15.1] - 2026-05-06
+
+### <!-- 0 -->🚀 Features
+- Add a way to disable perf compression through env var by @GuillaumeLagrange in [#334](https://github.com/CodSpeedHQ/runner/pull/334)
+- Do not display the comparison nudge when not in an interactive terminal by @GuillaumeLagrange in [#300](https://github.com/CodSpeedHQ/runner/pull/300)
+- Display a warning when profiling generation failed by @GuillaumeLagrange
+- Detect and abort on ring buffer overflow by @not-matthias in [#321](https://github.com/CodSpeedHQ/runner/pull/321)
+- Grow ring buffer to 16 MiB by @not-matthias
+
+### <!-- 7 -->⚙️ Internals
+- Increase stack sampling for python by @GuillaumeLagrange in [#337](https://github.com/CodSpeedHQ/runner/pull/337)
+- Replace hard coded lint job for a dedicated check action by @GuillaumeLagrange in [#320](https://github.com/CodSpeedHQ/runner/pull/320)
+- Bump cpp-linter-hooks to support darwin by @GuillaumeLagrange
+- Swap pre-commit action for prek by @GuillaumeLagrange
+- Fix unused clippy errors in test targets on macos by @GuillaumeLagrange
+- Run pre-commit hooks on macos and ubuntu-latest by @GuillaumeLagrange
+
+
 ## [4.15.0] - 2026-04-28
 
 ### <!-- 0 -->🚀 Features
@@ -20,7 +38,7 @@
 - Add stripped binary and debug file test fixtures by @not-matthias
 
 ### <!-- 7 -->⚙️ Internals
-- Bump exec-harness version
+- Bump exec-harness version by @adriencaccia
 - Add macos basic run test by @GuillaumeLagrange in [#319](https://github.com/CodSpeedHQ/runner/pull/319)
 - Remove DumpPerfMapAtExit in favor of custom dumper by @not-matthias in [#295](https://github.com/CodSpeedHQ/runner/pull/295)
 
@@ -1113,6 +1131,7 @@
 - Add linting components to the toolchain by @art049
 
 
+[4.15.1]: https://github.com/CodSpeedHQ/runner/compare/v4.15.0..v4.15.1
 [4.15.0]: https://github.com/CodSpeedHQ/runner/compare/v4.14.0..v4.15.0
 [4.14.0]: https://github.com/CodSpeedHQ/runner/compare/v4.13.0..v4.14.0
 [4.13.0]: https://github.com/CodSpeedHQ/runner/compare/v4.12.1..v4.13.0
