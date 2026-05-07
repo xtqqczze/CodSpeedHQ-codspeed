@@ -51,7 +51,6 @@ pub enum SimulationTool {
 #[derive(Debug, Clone)]
 pub struct OrchestratorConfig {
     pub upload_url: Url,
-    pub token: Option<String>,
     pub repository_override: Option<RepositoryOverride>,
     pub working_directory: Option<String>,
 
@@ -91,7 +90,6 @@ pub struct OrchestratorConfig {
 /// `skip_upload`, `repository_override`) live on [`OrchestratorConfig`].
 #[derive(Debug, Clone)]
 pub struct ExecutorConfig {
-    pub token: Option<String>,
     pub working_directory: Option<String>,
     pub command: String,
 
@@ -144,10 +142,6 @@ impl RepositoryOverride {
 pub const DEFAULT_UPLOAD_URL: &str = "https://api.codspeed.io/upload";
 
 impl OrchestratorConfig {
-    pub fn set_token(&mut self, token: Option<String>) {
-        self.token = token;
-    }
-
     /// Compute the total number of executor runs that will be performed.
     ///
     /// All `Exec` targets are combined into a single invocation, while each
@@ -177,7 +171,6 @@ impl OrchestratorConfig {
         enable_introspection: bool,
     ) -> ExecutorConfig {
         ExecutorConfig {
-            token: self.token.clone(),
             working_directory: self.working_directory.clone(),
             command,
             instruments: self.instruments.clone(),
@@ -195,19 +188,12 @@ impl OrchestratorConfig {
     }
 }
 
-impl ExecutorConfig {
-    pub fn set_token(&mut self, token: Option<String>) {
-        self.token = token;
-    }
-}
-
 #[cfg(test)]
 impl OrchestratorConfig {
     /// Constructs a new `OrchestratorConfig` with default values for testing purposes
     pub fn test() -> Self {
         Self {
             upload_url: Url::parse(DEFAULT_UPLOAD_URL).unwrap(),
-            token: None,
             repository_override: None,
             working_directory: None,
             targets: vec![BenchmarkTarget::Entrypoint {

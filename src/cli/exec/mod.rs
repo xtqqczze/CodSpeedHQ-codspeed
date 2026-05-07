@@ -1,6 +1,5 @@
 use super::ExecAndRunSharedArgs;
 use crate::api_client::CodSpeedAPIClient;
-use crate::config::CodSpeedConfig;
 use crate::executor;
 use crate::executor::config::{self, OrchestratorConfig, RepositoryOverride};
 use crate::instruments::Instruments;
@@ -67,7 +66,6 @@ fn build_orchestrator_config(
 
     Ok(OrchestratorConfig {
         upload_url,
-        token: args.shared.token,
         repository_override: args
             .shared
             .repository
@@ -95,8 +93,7 @@ fn build_orchestrator_config(
 
 pub async fn run(
     args: ExecArgs,
-    api_client: &CodSpeedAPIClient,
-    codspeed_config: &CodSpeedConfig,
+    api_client: &mut CodSpeedAPIClient,
     project_config: Option<&ProjectConfig>,
     setup_cache_dir: Option<&Path>,
 ) -> Result<()> {
@@ -113,7 +110,7 @@ pub async fn run(
         PollResultsOptions::new(false, base_run_id),
     )?;
 
-    execute_config(config, api_client, codspeed_config, setup_cache_dir).await
+    execute_config(config, api_client, setup_cache_dir).await
 }
 
 /// Core execution logic shared by `codspeed exec` and `codspeed run` with config targets.
@@ -122,8 +119,7 @@ pub async fn run(
 /// by the orchestrator when exec targets are present.
 pub async fn execute_config(
     mut config: OrchestratorConfig,
-    api_client: &CodSpeedAPIClient,
-    codspeed_config: &CodSpeedConfig,
+    api_client: &mut CodSpeedAPIClient,
     setup_cache_dir: Option<&Path>,
 ) -> Result<()> {
     // Resolve exec target binary paths so memtrack can discover statically linked
@@ -160,7 +156,7 @@ pub async fn execute_config(
         );
     }
 
-    let orchestrator = executor::Orchestrator::new(config, codspeed_config, api_client).await?;
+    let orchestrator = executor::Orchestrator::new(config, api_client).await?;
 
     if !orchestrator.is_local() {
         super::show_banner();

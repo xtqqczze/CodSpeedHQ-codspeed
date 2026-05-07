@@ -123,13 +123,6 @@ fi
     pub async fn create_test_setup(config: ExecutorConfig) -> (ExecutionContext, TempDir) {
         let temp_dir = TempDir::new().unwrap();
 
-        let mut config = config;
-
-        // Provide a test token so authentication doesn't fail
-        if config.token.is_none() {
-            config.token = Some("test-token".to_string());
-        }
-
         let profile_folder = temp_dir.path().to_path_buf();
         let execution_context = ExecutionContext::new(config, profile_folder);
 

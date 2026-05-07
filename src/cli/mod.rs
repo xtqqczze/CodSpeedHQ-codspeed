@@ -123,9 +123,8 @@ pub async fn run() -> Result<()> {
     let cli = Cli::parse();
     // Important: keep this after the Cli::parse() because the function can exit the process by itself, skipping the drop of the CursorGuard
     let _cursor_guard = CursorGuard::new();
-    let codspeed_config =
-        CodSpeedConfig::load_with_override(cli.config_name.as_deref(), cli.oauth_token.as_deref())?;
-    let api_client = CodSpeedAPIClient::try_from((&cli, &codspeed_config))?;
+
+    let mut api_client = build_api_client(&cli)?;
 
     // Discover project configuration file
     let discovered_config = DiscoveredProjectConfig::discover_and_load(
@@ -152,8 +151,7 @@ pub async fn run() -> Result<()> {
             args.shared.experimental.warn_if_active();
             run::run(
                 *args,
-                &api_client,
-                &codspeed_config,
+                &mut api_client,
                 discovered_config.as_ref(),
                 setup_cache_dir,
             )
@@ -163,8 +161,7 @@ pub async fn run() -> Result<()> {
             args.shared.experimental.warn_if_active();
             exec::run(
                 *args,
-                &api_client,
-                &codspeed_config,
+                &mut api_client,
                 discovered_config.as_ref().map(|d| &d.config),
                 setup_cache_dir,
             )
@@ -180,17 +177,37 @@ pub async fn run() -> Result<()> {
     Ok(())
 }
 
-impl Cli {
-    /// Create a test CLI instance with a custom API URL for use in tests
-    #[cfg(test)]
-    pub fn test_with_url(api_url: String) -> Self {
-        Self {
-            api_url,
-            oauth_token: None,
-            config_name: None,
-            config: None,
-            setup_cache_dir: None,
-            command: Commands::Setup(setup::SetupArgs::default()),
+/// Build the api client for this invocation, resolving the auth token
+/// from the most specific source available. This is the single source
+/// of truth for token resolution; the result lives on the returned
+/// client and every downstream consumer (GraphQL queries, upload
+/// `Authorization` header, executor env injection) reads it from there.
+///
+/// Priority (most specific first):
+///   1. `--token` / `CODSPEED_TOKEN`           — run/exec-level override
+///   2. `--oauth-token` / `CODSPEED_OAUTH_TOKEN` and the persisted CLI
+///      token — both live on disk and are loaded together by
+///      [`CodSpeedConfig::load_with_override`].
+///
+/// The CLI config file is only read when no explicit token was passed,
+/// so an invocation like `codspeed run --token <X>` never touches the
+/// user's `~/.config/codspeed/`.
+fn build_api_client(cli: &Cli) -> Result<CodSpeedAPIClient> {
+    let explicit = match &cli.command {
+        Commands::Run(args) => args.shared.token.clone(),
+        Commands::Exec(args) => args.shared.token.clone(),
+        _ => None,
+    };
+    let token = match explicit {
+        Some(token) => Some(token),
+        None => {
+            CodSpeedConfig::load_with_override(
+                cli.config_name.as_deref(),
+                cli.oauth_token.as_deref(),
+            )?
+            .auth
+            .token
         }
-    }
+    };
+    Ok(CodSpeedAPIClient::new(token, cli.api_url.clone()))
 }

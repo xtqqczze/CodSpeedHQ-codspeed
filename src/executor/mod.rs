@@ -17,7 +17,7 @@ use crate::prelude::*;
 use crate::runner_mode::RunnerMode;
 use crate::system::SystemInfo;
 use async_trait::async_trait;
-pub use config::{BenchmarkTarget, ExecutorConfig, OrchestratorConfig};
+pub use config::{BenchmarkTarget, ExecutorConfig};
 pub use execution_context::ExecutionContext;
 pub use interfaces::ExecutorName;
 pub use orchestrator::Orchestrator;

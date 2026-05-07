@@ -1,5 +1,5 @@
+use crate::api_client::CodSpeedAPIClient;
 use crate::executor::ExecutionContext;
-use crate::executor::ExecutorConfig;
 use crate::executor::ExecutorName;
 use crate::executor::Orchestrator;
 use crate::run_environment::RunEnvironment;
@@ -123,14 +123,14 @@ async fn create_profile_archive(
 
 async fn retrieve_upload_data(
     orchestrator: &Orchestrator,
-    config: &ExecutorConfig,
+    api_client: &CodSpeedAPIClient,
     upload_metadata: &UploadMetadata,
 ) -> Result<UploadData> {
     let mut upload_request = REQUEST_CLIENT
         .post(orchestrator.config.upload_url.clone())
         .json(&upload_metadata);
-    if !upload_metadata.tokenless {
-        upload_request = upload_request.header("Authorization", config.token.clone().unwrap());
+    if let Some(token) = api_client.token() {
+        upload_request = upload_request.header("Authorization", token.to_owned());
     }
 
     let response = upload_request.send().await;
@@ -250,6 +250,7 @@ pub struct UploadResult {
 
 pub async fn upload(
     orchestrator: &Orchestrator,
+    api_client: &CodSpeedAPIClient,
     execution_context: &ExecutionContext,
     executor_name: ExecutorName,
     run_part_suffix: BTreeMap<String, Value>,
@@ -266,6 +267,7 @@ pub async fn upload(
         .provider
         .get_upload_metadata(
             &execution_context.config,
+            api_client,
             &orchestrator.system_info,
             &profile_archive,
             executor_name,
@@ -279,8 +281,7 @@ pub async fn upload(
     }
 
     debug!("Preparing upload...");
-    let upload_data =
-        retrieve_upload_data(orchestrator, &execution_context.config, &upload_metadata).await?;
+    let upload_data = retrieve_upload_data(orchestrator, api_client, &upload_metadata).await?;
     debug!("runId: {}", upload_data.run_id);
 
     debug!(
@@ -303,18 +304,17 @@ mod tests {
     use url::Url;
 
     use super::*;
-    use crate::config::CodSpeedConfig;
     use std::path::PathBuf;
 
     // TODO: remove the ignore when implementing network mocking
     #[ignore]
     #[tokio::test]
     async fn test_upload() {
-        use crate::executor::OrchestratorConfig;
+        use crate::executor::ExecutorConfig;
+        use crate::executor::config::OrchestratorConfig;
 
         let orchestrator_config = OrchestratorConfig {
             upload_url: Url::parse("change me").unwrap(),
-            token: Some("change me".into()),
             profile_folder: Some(PathBuf::from(format!(
                 "{}/src/uploader/samples/adrien-python-test",
                 env!("CARGO_MANIFEST_DIR")
@@ -327,7 +327,6 @@ mod tests {
         ));
         let executor_config = ExecutorConfig {
             command: "pytest tests/ --codspeed".into(),
-            token: Some("change me".into()),
             ..ExecutorConfig::test()
         };
         async_with_vars(
@@ -359,17 +358,16 @@ mod tests {
                 ("VERSION", Some("0.1.0")),
             ],
             async {
-                let codspeed_config = CodSpeedConfig::default();
                 let api_client = CodSpeedAPIClient::create_test_client();
-                let orchestrator =
-                    Orchestrator::new(orchestrator_config, &codspeed_config, &api_client)
-                        .await
-                        .expect("Failed to create Orchestrator for test");
+                let orchestrator = Orchestrator::new(orchestrator_config, &api_client)
+                    .await
+                    .expect("Failed to create Orchestrator for test");
                 let execution_context = ExecutionContext::new(executor_config, profile_folder);
                 let run_part_suffix =
                     BTreeMap::from([("executor".to_string(), Value::from("valgrind"))]);
                 upload(
                     &orchestrator,
+                    &api_client,
                     &execution_context,
                     ExecutorName::Valgrind,
                     run_part_suffix,

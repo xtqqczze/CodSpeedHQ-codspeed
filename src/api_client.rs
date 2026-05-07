@@ -3,7 +3,6 @@ use std::fmt::Display;
 use crate::executor::ExecutorName;
 use crate::prelude::*;
 use crate::run_environment::RepositoryProvider;
-use crate::{cli::Cli, config::CodSpeedConfig};
 use console::style;
 use gql_client::{Client as GQLClient, ClientConfig};
 use nestify::nest;
@@ -12,36 +11,56 @@ use serde::{Deserialize, Serialize};
 pub struct CodSpeedAPIClient {
     gql_client: GQLClient,
     unauthenticated_gql_client: GQLClient,
+    api_url: String,
+    /// The token this client authenticates with. Exposed so downstream
+    /// consumers (the uploader's `Authorization` header, the executor's
+    /// `CODSPEED_OAUTH_TOKEN` env injection) don't have to thread the
+    /// token separately from the client.
+    token: Option<String>,
 }
 
-impl TryFrom<(&Cli, &CodSpeedConfig)> for CodSpeedAPIClient {
-    type Error = Error;
-    fn try_from((args, codspeed_config): (&Cli, &CodSpeedConfig)) -> Result<Self> {
-        Ok(Self {
-            gql_client: build_gql_api_client(codspeed_config, args.api_url.clone(), true),
-            unauthenticated_gql_client: build_gql_api_client(
-                codspeed_config,
-                args.api_url.clone(),
-                false,
-            ),
-        })
+impl CodSpeedAPIClient {
+    /// Build a client authenticated with `token` (when `Some`).
+    ///
+    /// The CLI resolves the effective token at construction time, so
+    /// callers downstream (the uploader, the executor's env injection,
+    /// every GraphQL caller) just consume it from the client through
+    /// [`Self::token`] and don't have to thread the token separately.
+    pub fn new(token: Option<String>, api_url: String) -> Self {
+        Self {
+            gql_client: build_gql_api_client(token.as_deref(), api_url.clone()),
+            unauthenticated_gql_client: build_gql_api_client(None, api_url.clone()),
+            api_url,
+            token,
+        }
+    }
+
+    /// The token this client currently authenticates with, if any.
+    ///
+    /// Note: this is not necessarily the token the client was built with —
+    /// in CI with OIDC, [`Self::set_token`] is called before each upload to
+    /// rotate the credentials. See [`crate::run_environment::RunEnvironmentProvider::refresh_token`].
+    pub fn token(&self) -> Option<&str> {
+        self.token.as_deref()
+    }
+
+    /// Replace the token this client uses for authenticated GraphQL
+    /// requests and that the uploader pulls for its `Authorization`
+    /// header. The single mutation point for the credentials.
+    pub fn set_token(&mut self, token: Option<String>) {
+        self.gql_client = build_gql_api_client(token.as_deref(), self.api_url.clone());
+        self.token = token;
     }
 }
 
-fn build_gql_api_client(
-    codspeed_config: &CodSpeedConfig,
-    api_url: String,
-    with_auth: bool,
-) -> GQLClient {
-    let headers = if with_auth && codspeed_config.auth.token.is_some() {
-        let mut headers = std::collections::HashMap::new();
-        headers.insert(
-            "Authorization".to_string(),
-            codspeed_config.auth.token.clone().unwrap(),
-        );
-        headers
-    } else {
-        Default::default()
+fn build_gql_api_client(token: Option<&str>, api_url: String) -> GQLClient {
+    let headers = match token {
+        Some(token) => {
+            let mut headers = std::collections::HashMap::new();
+            headers.insert("Authorization".to_string(), token.to_owned());
+            headers
+        }
+        None => Default::default(),
     };
 
     GQLClient::new_with_config(ClientConfig {
@@ -467,7 +486,6 @@ impl CodSpeedAPIClient {
     /// Create a test API client with a custom URL for use in tests
     #[cfg(test)]
     pub fn create_test_client_with_url(api_url: String) -> Self {
-        let codspeed_config = CodSpeedConfig::default();
-        Self::try_from((&Cli::test_with_url(api_url), &codspeed_config)).unwrap()
+        Self::new(None, api_url)
     }
 }

@@ -1,6 +1,5 @@
 use super::ExecAndRunSharedArgs;
 use crate::api_client::CodSpeedAPIClient;
-use crate::config::CodSpeedConfig;
 use crate::executor;
 use crate::executor::config::{self, OrchestratorConfig, RepositoryOverride};
 use crate::instruments::Instruments;
@@ -101,7 +100,6 @@ fn build_orchestrator_config(
 
     Ok(OrchestratorConfig {
         upload_url,
-        token: args.shared.token,
         repository_override: args
             .shared
             .repository
@@ -142,8 +140,7 @@ enum RunTarget<'a> {
 
 pub async fn run(
     args: RunArgs,
-    api_client: &CodSpeedAPIClient,
-    codspeed_config: &CodSpeedConfig,
+    api_client: &mut CodSpeedAPIClient,
     discovered_config: Option<&DiscoveredProjectConfig>,
     setup_cache_dir: Option<&Path>,
 ) -> Result<()> {
@@ -188,8 +185,7 @@ pub async fn run(
                 poll_opts,
             )?;
 
-            let orchestrator =
-                executor::Orchestrator::new(config, codspeed_config, api_client).await?;
+            let orchestrator = executor::Orchestrator::new(config, api_client).await?;
 
             if !orchestrator.is_local() {
                 super::show_banner();
@@ -244,8 +240,7 @@ pub async fn run(
                 PollResultsOptions::new(false, base_run_id),
             )?;
             config.working_directory = resolved_working_directory;
-            super::exec::execute_config(config, api_client, codspeed_config, setup_cache_dir)
-                .await?;
+            super::exec::execute_config(config, api_client, setup_cache_dir).await?;
         }
     }
 

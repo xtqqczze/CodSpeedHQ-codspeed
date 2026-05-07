@@ -3,7 +3,6 @@ use crate::api_client::CodSpeedAPIClient;
 use crate::binary_installer::ensure_binary_installed;
 use crate::cli::exec::multi_targets;
 use crate::cli::run::logger::Logger;
-use crate::config::CodSpeedConfig;
 use crate::executor::config::BenchmarkTarget;
 use crate::executor::config::OrchestratorConfig;
 use crate::executor::helpers::profile_folder::create_profile_folder;
@@ -36,22 +35,10 @@ impl Orchestrator {
         self.provider.get_run_environment() == RunEnvironment::Local
     }
 
-    pub async fn new(
-        mut config: OrchestratorConfig,
-        codspeed_config: &CodSpeedConfig,
-        api_client: &CodSpeedAPIClient,
-    ) -> Result<Self> {
+    pub async fn new(config: OrchestratorConfig, api_client: &CodSpeedAPIClient) -> Result<Self> {
         let provider = run_environment::get_provider(&config, api_client).await?;
         let system_info = SystemInfo::new()?;
         let logger = Logger::new(provider.as_ref())?;
-
-        if provider.get_run_environment() == RunEnvironment::Local {
-            if codspeed_config.auth.token.is_none() {
-                bail!("You have to authenticate the CLI first. Run `codspeed auth login`.");
-            }
-            debug!("Using the token from the CodSpeed configuration file");
-            config.set_token(codspeed_config.auth.token.clone());
-        }
 
         #[allow(deprecated)]
         if config.modes.contains(&RunnerMode::Instrumentation) {
@@ -82,7 +69,7 @@ impl Orchestrator {
     pub async fn execute(
         &self,
         setup_cache_dir: Option<&Path>,
-        api_client: &CodSpeedAPIClient,
+        api_client: &mut CodSpeedAPIClient,
     ) -> Result<()> {
         // Build (command, label, uses_exec_harness) tuples while we still know the target type
         let mut command_labels: Vec<(String, String, bool)> = vec![];
@@ -215,13 +202,13 @@ impl Orchestrator {
     async fn upload_and_poll(
         &self,
         mut completed_runs: Vec<(ExecutionContext, ExecutorName)>,
-        api_client: &CodSpeedAPIClient,
+        api_client: &mut CodSpeedAPIClient,
     ) -> Result<()> {
         let skip_upload = self.config.skip_upload;
 
         if !skip_upload {
             start_group!("Uploading results");
-            let last_upload_result = self.upload_all(&mut completed_runs).await?;
+            let last_upload_result = self.upload_all(&mut completed_runs, api_client).await?;
             end_group!();
 
             if self.is_local() {
@@ -258,22 +245,28 @@ impl Orchestrator {
     pub async fn upload_all(
         &self,
         completed_runs: &mut [(ExecutionContext, ExecutorName)],
+        api_client: &mut CodSpeedAPIClient,
     ) -> Result<UploadResult> {
         let mut last_upload_result: Option<UploadResult> = None;
 
         let total_runs = completed_runs.len();
         for (run_part_index, (ctx, executor_name)) in completed_runs.iter_mut().enumerate() {
-            if !self.is_local() {
-                // OIDC tokens can expire quickly, so refresh just before each upload
-                self.provider.set_oidc_token(&mut ctx.config).await?;
-            }
+            // OIDC tokens can expire quickly, so refresh just before each upload
+            self.provider.set_oidc_token(api_client).await?;
 
             if total_runs > 1 {
                 info!("Uploading results {}/{total_runs}", run_part_index + 1);
             }
             let run_part_suffix =
                 Self::build_run_part_suffix(executor_name, run_part_index, total_runs);
-            let upload_result = upload(self, ctx, executor_name.clone(), run_part_suffix).await?;
+            let upload_result = upload(
+                self,
+                api_client,
+                ctx,
+                executor_name.clone(),
+                run_part_suffix,
+            )
+            .await?;
             last_upload_result = Some(upload_result);
         }
         info!("Performance data uploaded");
