@@ -24,7 +24,9 @@ pub fn get_base_injected_env(
         ("PYTHONHASHSEED".into(), "0".into()),
         (
             "PYTHON_PERF_JIT_SUPPORT".into(),
-            if mode == RunnerMode::Walltime {
+            // FIXME(COD-2645): Keep this disabled on macOS. Enabling it causes
+            // many unresolved addresses on the stack when profiling with samply.
+            if mode == RunnerMode::Walltime && !cfg!(target_os = "macos") {
                 "1".into()
             } else {
                 "0".into()
