@@ -43,7 +43,7 @@ simplelog = { version = "0.12.1", default-features = false, features = [
 tempfile = { workspace = true }
 git2 = "0.20.4"
 nestify = "0.3.3"
-gql_client = { git = "https://github.com/CodSpeedHQ/gql-client-rs" }
+gql_client = { git = "https://github.com/CodSpeedHQ/gql-client-rs", rev = "617a889e1d9089b5aa36679f1a5aa13ad01993ae" }
 serde_yaml = "0.9.34"
 sysinfo = { version = "0.33.1", features = ["serde"] }
 indicatif = "0.17.8"
