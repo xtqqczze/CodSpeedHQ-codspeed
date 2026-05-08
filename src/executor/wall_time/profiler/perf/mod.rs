@@ -187,11 +187,11 @@ impl Profiler for PerfProfiler {
         Ok(wrapped_builder)
     }
 
-    async fn on_start_benchmark(&mut self) -> anyhow::Result<()> {
+    async fn on_start_profiler(&mut self) -> anyhow::Result<()> {
         self.perf_fifo_mut()?.start_events().await
     }
 
-    async fn on_stop_benchmark(&mut self) -> anyhow::Result<()> {
+    async fn on_stop_profiler(&mut self) -> anyhow::Result<()> {
         self.perf_fifo_mut()?.stop_events().await
     }
 

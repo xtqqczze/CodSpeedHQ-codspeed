@@ -207,14 +207,14 @@ impl MemoryExecutor {
                         );
                     }
                 }
-                FifoCommand::StartBenchmark => {
+                FifoCommand::StartProfiler => {
                     debug!("Enabling memtrack via IPC");
                     if let Err(e) = ipc_client.enable() {
                         error!("Failed to enable memtrack: {e}");
                         return Ok(Some(FifoCommand::Err));
                     }
                 }
-                FifoCommand::StopBenchmark => {
+                FifoCommand::StopProfiler => {
                     debug!("Disabling memtrack via IPC");
                     if let Err(e) = ipc_client.disable() {
                         // There's a chance that memtrack has already exited here, so just log as debug

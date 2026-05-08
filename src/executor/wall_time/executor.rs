@@ -251,12 +251,12 @@ async fn run_with_profiler(
 
     run_command_with_log_pipe_and_callback(cmd, async move |mut child| {
         let on_cmd = async |c: &FifoCommand| match c {
-            FifoCommand::StartBenchmark => {
-                profiler.on_start_benchmark().await?;
+            FifoCommand::StartProfiler => {
+                profiler.on_start_profiler().await?;
                 Ok(None)
             }
-            FifoCommand::StopBenchmark => {
-                profiler.on_stop_benchmark().await?;
+            FifoCommand::StopProfiler => {
+                profiler.on_stop_profiler().await?;
                 Ok(None)
             }
             #[allow(deprecated)]

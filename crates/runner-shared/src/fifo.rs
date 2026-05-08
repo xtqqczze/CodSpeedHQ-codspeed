@@ -18,15 +18,15 @@ const _: () = assert!(
 /// The different markers that can be set in the perf.data.
 ///
 /// `SampleStart/End`: Marks the start and end of a sampling period. This is used to differentiate between benchmarks.
-/// `BenchmarkStart/End`: Marks the start and end of a benchmark. This is used to measure the duration of a benchmark, without the benchmark harness code.
+/// `RoundStart/End`: Marks the start and end of a measured round. This is used to measure the duration of a benchmark, without the benchmark harness code.
 #[derive(
     serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone,
 )]
 pub enum MarkerType {
     SampleStart(u64),
     SampleEnd(u64),
-    BenchmarkStart(u64),
-    BenchmarkEnd(u64),
+    RoundStart(u64),
+    RoundEnd(u64),
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
@@ -42,8 +42,8 @@ pub enum Command {
         pid: i32,
         uri: String,
     },
-    StartBenchmark,
-    StopBenchmark,
+    StartProfiler,
+    StopProfiler,
     Ack,
     #[deprecated(note = "Use `GetIntegrationMode` instead")]
     PingProfiler,

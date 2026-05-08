@@ -54,12 +54,12 @@ pub trait Profiler {
     ) -> anyhow::Result<CommandBuilder>;
 
     /// The benchmarked process signaled the start of a measured region.
-    async fn on_start_benchmark(&mut self) -> anyhow::Result<()> {
+    async fn on_start_profiler(&mut self) -> anyhow::Result<()> {
         Ok(())
     }
 
     /// The benchmarked process signaled the end of a measured region.
-    async fn on_stop_benchmark(&mut self) -> anyhow::Result<()> {
+    async fn on_stop_profiler(&mut self) -> anyhow::Result<()> {
         Ok(())
     }
 

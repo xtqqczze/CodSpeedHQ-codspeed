@@ -210,21 +210,21 @@ impl RunnerFifo {
                         bench_pids.insert(*pid);
                         self.send_cmd(FifoCommand::Ack).await?;
                     }
-                    FifoCommand::StartBenchmark => {
+                    FifoCommand::StartProfiler => {
                         if !benchmark_started {
                             benchmark_started = true;
                             markers.push(MarkerType::SampleStart(get_current_time()));
                         } else {
-                            warn!("Received duplicate StartBenchmark command, ignoring");
+                            warn!("Received duplicate StartProfiler command, ignoring");
                         }
                         self.send_cmd(FifoCommand::Ack).await?;
                     }
-                    FifoCommand::StopBenchmark => {
+                    FifoCommand::StopProfiler => {
                         if benchmark_started {
                             benchmark_started = false;
                             markers.push(MarkerType::SampleEnd(get_current_time()));
                         } else {
-                            warn!("Received StopBenchmark command before StartBenchmark, ignoring");
+                            warn!("Received StopProfiler command before StartProfiler, ignoring");
                         }
                         self.send_cmd(FifoCommand::Ack).await?;
                     }
