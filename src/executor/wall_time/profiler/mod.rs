@@ -46,7 +46,7 @@ pub trait Profiler {
     /// `CommandBuilder` is what gets spawned. Profilers stash any live state
     /// they need for the duration of the run (control fifos, output paths)
     /// on `self`.
-    async fn wrap(
+    async fn wrap_command(
         &mut self,
         cmd: CommandBuilder,
         config: &ExecutorConfig,

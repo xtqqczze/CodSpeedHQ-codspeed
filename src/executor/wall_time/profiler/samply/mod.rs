@@ -21,8 +21,8 @@ use super::WALLTIME_METADATA_CURRENT_VERSION;
 const SAMPLY_OUTPUT_FILE_NAME: &str = "samply-profile.json.gz";
 
 pub struct SamplyProfiler {
-    /// Set by [`Profiler::wrap`]. Currently unused after `wrap` returns —
-    /// samply writes the file itself — but we hold onto it so future
+    /// Set by [`Profiler::wrap_command`]. Currently unused after `wrap_command`
+    /// returns — samply writes the file itself — but we hold onto it so future
     /// `finalize` work (e.g. validation, conversion) has the path on hand.
     output_path: Option<PathBuf>,
 }
@@ -43,7 +43,7 @@ impl Profiler for SamplyProfiler {
         ensure_linux_profiling_sysctls()
     }
 
-    async fn wrap(
+    async fn wrap_command(
         &mut self,
         mut cmd_builder: CommandBuilder,
         _config: &ExecutorConfig,

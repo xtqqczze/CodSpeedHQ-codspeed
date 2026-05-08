@@ -241,7 +241,9 @@ async fn run_with_profiler(
     profile_folder: &Path,
     benchmark_state: &OnceCell<(FifoBenchmarkData, ExecutionTimestamps)>,
 ) -> Result<std::process::ExitStatus> {
-    let wrapped = profiler.wrap(cmd_builder, config, profile_folder).await?;
+    let wrapped = profiler
+        .wrap_command(cmd_builder, config, profile_folder)
+        .await?;
     let cmd = wrapped.build();
     debug!("cmd: {cmd:?}");
 

@@ -47,12 +47,12 @@ pub mod perf_executable;
 const PERF_PIPEDATA_FILE_NAME: &str = "perf.pipedata";
 
 pub struct PerfProfiler {
-    /// Set by [`Profiler::wrap`]; used by the FIFO hooks to control event
+    /// Set by [`Profiler::wrap_command`]; used by the FIFO hooks to control event
     /// recording on the live `perf record` process.
     perf_fifo: Option<PerfFifo>,
 
     /// Path to the file that the wrapped command pipes `perf record`'s
-    /// stdout into. Set by [`Profiler::wrap`]; consumed by [`Profiler::finalize`].
+    /// stdout into. Set by [`Profiler::wrap_command`]; consumed by [`Profiler::finalize`].
     perf_file_path: Option<PathBuf>,
 }
 
@@ -67,7 +67,7 @@ impl PerfProfiler {
     fn perf_fifo_mut(&mut self) -> anyhow::Result<&mut PerfFifo> {
         self.perf_fifo
             .as_mut()
-            .context("PerfProfiler::wrap must be called before FIFO hooks")
+            .context("PerfProfiler::wrap_command must be called before FIFO hooks")
     }
 }
 
@@ -86,7 +86,7 @@ impl Profiler for PerfProfiler {
         ensure_linux_profiling_sysctls()
     }
 
-    async fn wrap(
+    async fn wrap_command(
         &mut self,
         mut cmd_builder: CommandBuilder,
         config: &ExecutorConfig,
@@ -210,7 +210,7 @@ impl Profiler for PerfProfiler {
         let perf_file_path = self
             .perf_file_path
             .as_ref()
-            .context("PerfProfiler::wrap must be called before finalize")?;
+            .context("PerfProfiler::wrap_command must be called before finalize")?;
 
         let bench_data = BenchmarkData {
             fifo_data,
