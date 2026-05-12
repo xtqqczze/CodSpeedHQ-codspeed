@@ -30,7 +30,7 @@ serde = { workspace = true }
 serde_json = { workspace = true, features = ["preserve_order"] }
 url = "2.4.1"
 sha256 = "1.4.0"
-tokio = { version = "1", features = ["macros", "rt", "signal"] }
+tokio = { version = "1", features = ["macros", "rt"] }
 tokio-tar = { package = "astral-tokio-tar", version = "0.6.0" }
 tokio-util = "0.7.16"
 md5 = "0.7.0"
@@ -132,7 +132,11 @@ lto = "thin"
 strip = true
 
 [package.metadata.dist]
-targets = ["aarch64-apple-darwin", "aarch64-unknown-linux-musl", "x86_64-unknown-linux-musl"]
+targets = [
+    "aarch64-apple-darwin",
+    "aarch64-unknown-linux-musl",
+    "x86_64-unknown-linux-musl",
+]
 binaries.aarch64-apple-darwin = ["codspeed"]
 binaries.aarch64-unknown-linux-musl = ["codspeed"]
 binaries.x86_64-unknown-linux-musl = ["codspeed"]

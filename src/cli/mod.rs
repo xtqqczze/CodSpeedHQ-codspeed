@@ -18,7 +18,7 @@ use crate::{
     api_client::CodSpeedAPIClient,
     config::CodSpeedConfig,
     executor::helpers::command::CommandBuilder,
-    local_logger::{CODSPEED_U8_COLOR_CODE, IS_TTY, init_local_logger},
+    local_logger::{CODSPEED_U8_COLOR_CODE, init_local_logger},
     prelude::*,
     project_config::DiscoveredProjectConfig,
 };
@@ -26,27 +26,6 @@ use clap::{
     Parser, Subcommand,
     builder::{Styles, styling},
 };
-use console::Term;
-
-/// Guard that hides the terminal cursor on creation and restores it on drop.
-struct CursorGuard;
-
-impl CursorGuard {
-    fn new() -> Self {
-        if *IS_TTY {
-            let _ = Term::stderr().hide_cursor();
-        }
-        Self
-    }
-}
-
-impl Drop for CursorGuard {
-    fn drop(&mut self) {
-        if *IS_TTY {
-            let _ = Term::stderr().show_cursor();
-        }
-    }
-}
 
 fn create_styles() -> Styles {
     styling::Styles::styled()
@@ -151,26 +130,6 @@ impl InternalCommands {
 
 pub async fn run() -> Result<()> {
     let cli = Cli::parse();
-    // Important: keep this after the Cli::parse() because the function can exit the process by itself, skipping the drop of the CursorGuard
-    let _cursor_guard = CursorGuard::new();
-    if *IS_TTY {
-        // Ctrl+C terminates the process before `CursorGuard::drop` runs,
-        // so we restore the cursor explicitly, then re-raise SIGINT with
-        // the default disposition so the parent shell sees the expected
-        // signal-terminated status.
-        tokio::spawn(async {
-            if tokio::signal::ctrl_c().await.is_ok() {
-                drop(_cursor_guard); // explicitly drop to restore cursor before re-raising
-            }
-            // Safety: resetting SIGINT to SIG_DFL and raising it are
-            // async-signal-safe and have no Rust-level invariants to break.
-            unsafe {
-                libc::signal(libc::SIGINT, libc::SIG_DFL);
-                libc::raise(libc::SIGINT);
-            }
-        });
-    }
-
     let mut api_client = build_api_client(&cli)?;
 
     // Discover project configuration file
