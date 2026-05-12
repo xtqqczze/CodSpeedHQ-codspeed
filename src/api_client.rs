@@ -385,7 +385,10 @@ impl CodSpeedAPIClient {
             .await;
         match response {
             Ok(data) => Ok(data.session),
-            Err(err) if err.contains_error_code("UNAUTHENTICATED") => {
+            Err(err)
+                if err.contains_error_code("UNAUTHENTICATED")
+                    || err.contains_error_code("UNAUTHORIZED") =>
+            {
                 Err(SessionError::Unauthenticated)
             }
             Err(err) => Err(SessionError::Other(anyhow!(
@@ -423,7 +426,10 @@ impl CodSpeedAPIClient {
                 session: data.session,
                 repository_overview: data.repository_overview,
             }),
-            Err(err) if err.contains_error_code("UNAUTHENTICATED") => {
+            Err(err)
+                if err.contains_error_code("UNAUTHENTICATED")
+                    || err.contains_error_code("UNAUTHORIZED") =>
+            {
                 Err(SessionAndRepositoryOverviewError::Unauthenticated)
             }
             Err(err) if err.contains_error_code("REPOSITORY_NOT_FOUND") => {
