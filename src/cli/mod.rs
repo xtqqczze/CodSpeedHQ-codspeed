@@ -123,6 +123,23 @@ pub async fn run() -> Result<()> {
     let cli = Cli::parse();
     // Important: keep this after the Cli::parse() because the function can exit the process by itself, skipping the drop of the CursorGuard
     let _cursor_guard = CursorGuard::new();
+    if *IS_TTY {
+        // Ctrl+C terminates the process before `CursorGuard::drop` runs,
+        // so we restore the cursor explicitly, then re-raise SIGINT with
+        // the default disposition so the parent shell sees the expected
+        // signal-terminated status.
+        tokio::spawn(async {
+            if tokio::signal::ctrl_c().await.is_ok() {
+                drop(_cursor_guard); // explicitly drop to restore cursor before re-raising
+            }
+            // Safety: resetting SIGINT to SIG_DFL and raising it are
+            // async-signal-safe and have no Rust-level invariants to break.
+            unsafe {
+                libc::signal(libc::SIGINT, libc::SIG_DFL);
+                libc::raise(libc::SIGINT);
+            }
+        });
+    }
 
     let mut api_client = build_api_client(&cli)?;
 
