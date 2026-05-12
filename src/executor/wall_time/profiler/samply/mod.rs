@@ -1,5 +1,7 @@
 //! Samply profiler integration.
 
+use crate::cli::InternalCommands;
+use crate::cli::samply::SamplyArgs;
 use crate::executor::ExecutorConfig;
 use crate::executor::helpers::command::CommandBuilder;
 use crate::executor::shared::fifo::FifoBenchmarkData;
@@ -53,21 +55,20 @@ impl Profiler for SamplyProfiler {
 
         // samply is bundled into this binary as the `samply` subcommand;
         // re-exec ourselves so we don't depend on a system install.
-        let current_exe = std::env::current_exe()
-            .context("failed to resolve current executable for bundled samply")?;
-        let mut samply_builder = CommandBuilder::new(current_exe);
-        samply_builder.args([
-            "samply",
-            "record",
-            "--presymbolicate",
-            "--no-open",
-            "--save-only",
-            "--rate",
-            &SAMPLING_RATE_HZ.to_string(),
-        ]);
-        samply_builder.arg("-o");
-        samply_builder.arg(&output_path);
-        samply_builder.arg("--");
+        let samply_builder = InternalCommands::Samply(SamplyArgs {
+            args: vec![
+                "record".into(),
+                "--presymbolicate".into(),
+                "--no-open".into(),
+                "--save-only".into(),
+                "--rate".into(),
+                SAMPLING_RATE_HZ.to_string().into(),
+                "-o".into(),
+                output_path.clone().into(),
+                "--".into(),
+            ],
+        })
+        .get_command_builder()?;
 
         cmd_builder.wrap_with(samply_builder);
         self.output_path = Some(output_path);

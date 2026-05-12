@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 pub mod config;
 mod execution_context;
-mod helpers;
+pub(crate) mod helpers;
 mod interfaces;
 mod memory;
 pub mod orchestrator;

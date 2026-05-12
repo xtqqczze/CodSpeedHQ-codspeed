@@ -2,7 +2,7 @@ mod auth;
 pub(crate) mod exec;
 pub(crate) mod experimental;
 pub(crate) mod run;
-mod samply;
+pub(crate) mod samply;
 mod setup;
 mod shared;
 mod show;
@@ -17,6 +17,7 @@ use std::path::PathBuf;
 use crate::{
     api_client::CodSpeedAPIClient,
     config::CodSpeedConfig,
+    executor::helpers::command::CommandBuilder,
     local_logger::{CODSPEED_U8_COLOR_CODE, IS_TTY, init_local_logger},
     prelude::*,
     project_config::DiscoveredProjectConfig,
@@ -125,10 +126,27 @@ enum Commands {
 
 /// Subcommands the CLI uses to re-invoke itself; not user-facing entry points.
 #[derive(Subcommand, Debug)]
-enum InternalCommands {
+pub(crate) enum InternalCommands {
     /// Run the bundled samply profiler. Args are forwarded to samply.
     #[command(disable_help_flag = true, disable_help_subcommand = true)]
     Samply(samply::SamplyArgs),
+}
+
+impl InternalCommands {
+    /// Build a [`CommandBuilder`] that re-execs the current binary into this
+    /// internal subcommand. Each variant owns its own arg layout.
+    pub fn get_command_builder(&self) -> Result<CommandBuilder> {
+        let current_exe = std::env::current_exe()
+            .context("failed to resolve current executable for internal subcommand")?;
+        let mut builder = CommandBuilder::new(current_exe);
+        match self {
+            InternalCommands::Samply(args) => {
+                builder.arg("samply");
+                builder.args(args.args.iter().cloned());
+            }
+        }
+        Ok(builder)
+    }
 }
 
 pub async fn run() -> Result<()> {

@@ -7,7 +7,7 @@ use crate::prelude::*;
 #[derive(Debug, clap::Args)]
 pub struct SamplyArgs {
     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-    args: Vec<std::ffi::OsString>,
+    pub args: Vec<std::ffi::OsString>,
 }
 
 pub fn run(args: SamplyArgs) -> Result<()> {
