@@ -27,11 +27,20 @@ pub struct SamplyProfiler {
     /// returns — samply writes the file itself — but we hold onto it so future
     /// `finalize` work (e.g. validation, conversion) has the path on hand.
     output_path: Option<PathBuf>,
+    /// macOS only: set in [`Profiler::setup`] when the `bash` resolved on PATH
+    /// is Apple-signed and samply can't profile it, so [`Profiler::wrap_command`]
+    /// must prepend brew's bin dir to PATH.
+    #[cfg(target_os = "macos")]
+    needs_brew_bash: std::cell::Cell<bool>,
 }
 
 impl SamplyProfiler {
     pub fn new() -> Self {
-        Self { output_path: None }
+        Self {
+            output_path: None,
+            #[cfg(target_os = "macos")]
+            needs_brew_bash: std::cell::Cell::new(false),
+        }
     }
 }
 
@@ -42,7 +51,27 @@ impl Profiler for SamplyProfiler {
         _system_info: &SystemInfo,
         _setup_cache_dir: Option<&Path>,
     ) -> anyhow::Result<()> {
-        ensure_linux_profiling_sysctls()
+        ensure_linux_profiling_sysctls()?;
+
+        // samply can't profile Apple-signed bash. Only do the brew dance if the
+        // bash that samply would actually exec (the first `bash` on PATH) is
+        // signed; if a compatible (ad-hoc-signed) bash is already first on PATH,
+        // we're done.
+        #[cfg(target_os = "macos")]
+        {
+            use crate::executor::helpers::homebrew;
+            if bash_in_path_is_compatible()? {
+                return Ok(());
+            }
+
+            self.needs_brew_bash.set(true);
+            if !homebrew::is_installed("bash") {
+                confirm_bash_install()?;
+                homebrew::install("bash")?;
+            }
+        }
+
+        Ok(())
     }
 
     async fn wrap_command(
@@ -71,6 +100,23 @@ impl Profiler for SamplyProfiler {
         .get_command_builder()?;
 
         cmd_builder.wrap_with(samply_builder);
+
+        // If `setup` decided the bash on PATH is Apple-signed, prepend brew's
+        // bin so samply's spawned shell resolves to the ad-hoc-signed brew bash
+        // instead. Only the samply child's PATH is touched.
+        #[cfg(target_os = "macos")]
+        if self.needs_brew_bash.get() {
+            use crate::executor::helpers::homebrew;
+            let brew_bin = homebrew::prefix()?.join("bin");
+            let existing = std::env::var_os("PATH").unwrap_or_default();
+            let mut new_path = std::ffi::OsString::from(brew_bin);
+            if !existing.is_empty() {
+                new_path.push(":");
+                new_path.push(&existing);
+            }
+            cmd_builder.env("PATH", new_path);
+        }
+
         self.output_path = Some(output_path);
         Ok(cmd_builder)
     }
@@ -113,4 +159,60 @@ impl Profiler for SamplyProfiler {
 
         Ok(())
     }
+}
+
+/// Return `true` if the first `bash` on `PATH` can be profiled by samply.
+/// Compatible bashes (e.g. Homebrew's) are ad-hoc-signed and show
+/// `Signature=adhoc`; the system `/bin/bash` is signed with an `Authority=`
+/// line and is incompatible. Anything we can't classify is treated as
+/// incompatible so we err on the side of installing the brew bash.
+#[cfg(target_os = "macos")]
+fn bash_in_path_is_compatible() -> anyhow::Result<bool> {
+    use std::process::Command;
+
+    let which = Command::new("/usr/bin/which")
+        .arg("bash")
+        .output()
+        .context("failed to spawn `which bash`")?;
+    if !which.status.success() {
+        // No bash on PATH at all — samply will fail. Force the brew install
+        // path so we end up with one.
+        return Ok(false);
+    }
+    let bash_path = String::from_utf8_lossy(&which.stdout).trim().to_owned();
+
+    // `codesign -dv` writes to stderr.
+    let codesign = Command::new("/usr/bin/codesign")
+        .args(["-dv", "--verbose=2", &bash_path])
+        .output()
+        .context("failed to spawn `codesign`")?;
+    let info = String::from_utf8_lossy(&codesign.stderr);
+    Ok(info.contains("Signature=adhoc") || info.contains("flags=0x2(adhoc)"))
+}
+
+#[cfg(target_os = "macos")]
+fn confirm_bash_install() -> anyhow::Result<()> {
+    use crate::local_logger::IS_TTY;
+    use console::Term;
+
+    // Non-interactive (CI): just install
+    if !*IS_TTY {
+        return Ok(());
+    }
+
+    eprintln!(
+        "CodSpeed depends on bash for benchmark execution, but can't use /bin/bash because system executables are signed in a way that prevents profiling. Because of this, we need to install bash with Homebrew. This is a one-time setup, your system bash is untouched."
+    );
+    eprint!("\nRun `brew install bash` now? [Y/n] ");
+    let line = Term::stderr().read_line().unwrap_or_default();
+    let answer = line.trim();
+
+    // Default to yes on empty input (just pressing Enter).
+    if !(answer.is_empty()
+        || answer.eq_ignore_ascii_case("y")
+        || answer.eq_ignore_ascii_case("yes"))
+    {
+        bail!("Declined; cannot continue without an unsigned bash");
+    }
+    Ok(())
 }

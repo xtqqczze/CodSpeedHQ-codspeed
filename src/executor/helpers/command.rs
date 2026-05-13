@@ -48,6 +48,17 @@ impl CommandBuilder {
         self
     }
 
+    #[cfg(target_os = "macos")]
+    pub fn env<K, V>(&mut self, key: K, value: V) -> &mut Self
+    where
+        K: AsRef<OsStr>,
+        V: AsRef<OsStr>,
+    {
+        self.envs
+            .insert(key.as_ref().to_owned(), value.as_ref().to_owned());
+        self
+    }
+
     pub fn current_dir<D>(&mut self, dir: D)
     where
         D: AsRef<OsStr>,
