@@ -154,11 +154,16 @@ impl Orchestrator {
                 activate_rolling_buffer(&part.label);
             }
 
-            run_executor(executor.as_mut(), self, &ctx, setup_cache_dir).await?;
+            let result = run_executor(executor.as_mut(), self, &ctx, setup_cache_dir).await;
 
+            // Always tear the rolling buffer down before propagating the error,
+            // otherwise deferred warnings and the final error message would be
+            // swallowed by the deferred-logs queue.
             if !self.config.show_full_output {
                 deactivate_rolling_buffer();
             }
+
+            result?;
             all_completed_runs.push((ctx, executor.name()));
         }
 
