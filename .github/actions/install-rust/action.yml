@@ -10,7 +10,7 @@ runs:
   steps:
     - name: Install rust-toolchain.toml
       shell: bash
-      run: rustup toolchain install
+      run: rustup show
     - name: Install additional rustup components
       if: inputs.components != ''
       shell: bash
