@@ -1,10 +1,11 @@
 use crate::binary_installer::ensure_binary_installed;
+use crate::binary_pins::{self, PinnedBinary};
 use crate::executor::{ToolInstallStatus, ToolStatus};
 use crate::prelude::*;
 use std::process::Command;
 
 pub const MEMTRACK_COMMAND: &str = "codspeed-memtrack";
-pub const MEMTRACK_CODSPEED_VERSION: &str = "1.2.3";
+pub const MEMTRACK_CODSPEED_VERSION: &str = binary_pins::MEMTRACK_VERSION;
 
 pub fn get_memtrack_status() -> ToolStatus {
     let tool_name = MEMTRACK_COMMAND.to_string();
@@ -70,16 +71,10 @@ pub fn get_memtrack_status() -> ToolStatus {
 }
 
 pub async fn install_memtrack() -> Result<()> {
-    let get_memtrack_installer_url = || {
-        format!(
-            "https://github.com/CodSpeedHQ/codspeed/releases/download/memtrack-v{MEMTRACK_CODSPEED_VERSION}/memtrack-installer.sh"
-        )
-    };
-
     ensure_binary_installed(
         MEMTRACK_COMMAND,
         MEMTRACK_CODSPEED_VERSION,
-        get_memtrack_installer_url,
+        PinnedBinary::MemtrackInstaller,
     )
     .await
 }

@@ -35,18 +35,31 @@ cargo release -p exec-harness --execute beta
 
 After releasing `memtrack` or `exec-harness`, you **must** update the version references in the runner code:
 
-1. **For memtrack**: Update `MEMTRACK_CODSPEED_VERSION` in `src/executor/memory/executor.rs`:
+1. **For memtrack**: Update the `MEMTRACK_INSTALLER` pin record in `src/binary_pins.rs` (see [Pinned binary hashes](#pinned-binary-hashes) below).
 
-   ```rust
-   const MEMTRACK_CODSPEED_VERSION: &str = "X.Y.Z"; // Update to new version
-   ```
-
-2. **For exec-harness**: Update `EXEC_HARNESS_VERSION` in `src/executor/orchestrator.rs`:
-   ```rust
-   const EXEC_HARNESS_VERSION: &str = "X.Y.Z"; // Update to new version
-   ```
+2. **For exec-harness**: Update the `EXEC_HARNESS_INSTALLER` pin record in `src/binary_pins.rs`.
 
 These constants are used by the runner to download and install the correct versions of the binaries from GitHub releases.
+
+### Pinned binary hashes
+
+Every binary the runner downloads at install time (the patched valgrind `.deb`, the memtrack installer, the exec-harness installer, the mongo-tracer installer) is SHA-256-pinned. Each artifact keeps its version, URL template, and hash together in `src/binary_pins.rs`.
+
+When you bump a pinned version, regenerate the hash for each affected URL and update the matching pin record:
+
+```bash
+curl -sL '<url>' | sha256sum
+```
+
+For valgrind, that is one hash per supported `(distro_version, arch)` combination. `src/binary_pins.rs` also holds `VALGRIND_CODSPEED_VERSION` (the upstream semver, used to detect an already-installed copy) and `VALGRIND_DEB_REV` (the `.deb` revision suffix); the `.deb` package version is `{VALGRIND_CODSPEED_VERSION}-{VALGRIND_DEB_REV}`. Bump `VALGRIND_CODSPEED_VERSION` for a new upstream release, and `VALGRIND_DEB_REV` when the same upstream is repackaged.
+
+After updating, run the network-bound verification test that downloads every pinned URL and checks the bytes against the declared hash:
+
+```bash
+GITHUB_ACTIONS=true cargo test --lib binary_pins::tests::all_pinned_binaries_match_their_declared_sha256
+```
+
+This is also run in CI, but running it locally before opening the PR avoids a release-time round trip if a hash is wrong.
 
 ### Releasing the Main Runner
 
@@ -56,8 +69,10 @@ The main runner (`codspeed-runner`) should be released after ensuring all depend
 
 **Verify binary version references**: Check that version constants in the runner code match the released versions:
 
-- `MEMTRACK_CODSPEED_VERSION` in `src/executor/memory/executor.rs`
-- `EXEC_HARNESS_VERSION` in `src/executor/orchestrator.rs`
+- `MEMTRACK_VERSION` in `src/binary_pins.rs`
+- `EXEC_HARNESS_VERSION` in `src/binary_pins.rs`
+
+Also confirm the SHA-256 entries in the pin records in `src/binary_pins.rs` match the released artifacts.
 
 #### Release Command
 

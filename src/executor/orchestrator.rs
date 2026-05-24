@@ -1,6 +1,7 @@
 use super::{ExecutionContext, ExecutorName, get_executor_from_mode, run_executor};
 use crate::api_client::CodSpeedAPIClient;
 use crate::binary_installer::ensure_binary_installed;
+use crate::binary_pins::{self, PinnedBinary};
 use crate::cli::exec::multi_targets;
 use crate::cli::run::logger::Logger;
 use crate::executor::config::BenchmarkTarget;
@@ -18,7 +19,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 pub const EXEC_HARNESS_COMMAND: &str = "exec-harness";
-pub const EXEC_HARNESS_VERSION: &str = "1.3.0";
+pub const EXEC_HARNESS_VERSION: &str = binary_pins::EXEC_HARNESS_VERSION;
 
 /// Shared orchestration state created once per CLI invocation.
 ///
@@ -82,11 +83,11 @@ impl Orchestrator {
             .collect();
 
         if !exec_targets.is_empty() {
-            ensure_binary_installed(EXEC_HARNESS_COMMAND, EXEC_HARNESS_VERSION, || {
-                format!(
-                    "https://github.com/CodSpeedHQ/codspeed/releases/download/exec-harness-v{EXEC_HARNESS_VERSION}/exec-harness-installer.sh"
-                )
-            })
+            ensure_binary_installed(
+                EXEC_HARNESS_COMMAND,
+                EXEC_HARNESS_VERSION,
+                PinnedBinary::ExecHarnessInstaller,
+            )
             .await?;
 
             let pipe_cmd = multi_targets::build_exec_targets_pipe_command(&exec_targets)?;

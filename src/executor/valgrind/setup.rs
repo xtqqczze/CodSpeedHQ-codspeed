@@ -1,52 +1,56 @@
-use crate::cli::run::helpers::download_file;
+use crate::binary_pins::{
+    Arch, DistroVersion, PinnedBinary, VALGRIND_CODSPEED_VERSION, VALGRIND_CODSPEED_VERSION_STRING,
+    ValgrindTarget,
+};
+use crate::cli::run::helpers::download_pinned_file;
 use crate::executor::helpers::apt;
 use crate::executor::{ToolInstallStatus, ToolStatus};
 use crate::prelude::*;
 use crate::system::{LinuxDistribution, SupportedOs, SystemInfo};
-use crate::{
-    VALGRIND_CODSPEED_DEB_VERSION, VALGRIND_CODSPEED_VERSION, VALGRIND_CODSPEED_VERSION_STRING,
-};
 use semver::Version;
 use std::{env, path::Path, process::Command};
-use url::Url;
 
-pub(super) fn get_codspeed_valgrind_filename(system_info: &SystemInfo) -> Result<String> {
+fn get_codspeed_valgrind_target(system_info: &SystemInfo) -> Result<ValgrindTarget> {
     let SupportedOs::Linux(distro) = &system_info.os else {
         bail!("Unsupported system");
     };
 
-    let (deb_ubuntu_version, architecture) = match (distro, system_info.arch.as_str()) {
+    let (distro_version, arch) = match (distro, system_info.arch.as_str()) {
         (LinuxDistribution::Ubuntu { version }, "x86_64")
         | (LinuxDistribution::Debian { version }, "x86_64")
             if version == "22.04" || version == "12" =>
         {
-            ("22.04", "amd64")
+            (DistroVersion::Ubuntu2204, Arch::Amd64)
         }
         (LinuxDistribution::Ubuntu { version }, "x86_64") if version == "24.04" => {
-            ("24.04", "amd64")
+            (DistroVersion::Ubuntu2404, Arch::Amd64)
         }
         (LinuxDistribution::Ubuntu { version }, "aarch64")
         | (LinuxDistribution::Debian { version }, "aarch64")
             if version == "22.04" || version == "12" =>
         {
-            ("22.04", "arm64")
+            (DistroVersion::Ubuntu2204, Arch::Arm64)
         }
         (LinuxDistribution::Ubuntu { version }, "aarch64") if version == "24.04" => {
-            ("24.04", "arm64")
+            (DistroVersion::Ubuntu2404, Arch::Arm64)
         }
         _ => bail!("Unsupported system"),
     };
 
-    Ok(format!(
-        "valgrind_{}_ubuntu-{}_{}.deb",
-        VALGRIND_CODSPEED_DEB_VERSION.as_str(),
-        deb_ubuntu_version,
-        architecture
-    ))
+    Ok(ValgrindTarget {
+        distro_version,
+        arch,
+    })
+}
+
+fn get_codspeed_valgrind_binary(system_info: &SystemInfo) -> Result<PinnedBinary> {
+    Ok(PinnedBinary::ValgrindDeb(get_codspeed_valgrind_target(
+        system_info,
+    )?))
 }
 
 pub(super) fn is_codspeed_valgrind_installation_supported(system_info: &SystemInfo) -> bool {
-    get_codspeed_valgrind_filename(system_info).is_ok()
+    get_codspeed_valgrind_target(system_info).is_ok()
 }
 
 /// Parse a valgrind version string and extract the semantic version.
@@ -168,13 +172,9 @@ pub async fn install_valgrind(
         is_valgrind_installed,
         || async {
             debug!("Installing valgrind");
-            let valgrind_deb_url = format!(
-                "https://github.com/CodSpeedHQ/valgrind-codspeed/releases/download/{}/{}",
-                VALGRIND_CODSPEED_DEB_VERSION.as_str(),
-                get_codspeed_valgrind_filename(system_info)?
-            );
+            let binary = get_codspeed_valgrind_binary(system_info)?;
             let deb_path = env::temp_dir().join("valgrind-codspeed.deb");
-            download_file(&Url::parse(valgrind_deb_url.as_str()).unwrap(), &deb_path).await?;
+            download_pinned_file(binary, &deb_path).await?;
             apt::install(system_info, &[deb_path.to_str().unwrap()])?;
 
             // Return package names for caching
@@ -191,7 +191,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_system_info_to_codspeed_valgrind_version_ubuntu() {
+    fn test_system_info_to_codspeed_valgrind_url_ubuntu() {
         let system_info = SystemInfo {
             os: SupportedOs::Linux(LinuxDistribution::Ubuntu {
                 version: "22.04".into(),
@@ -200,13 +200,13 @@ mod tests {
             ..SystemInfo::test()
         };
         assert_snapshot!(
-            get_codspeed_valgrind_filename(&system_info).unwrap(),
-            @"valgrind_3.26.0-0codspeed2_ubuntu-22.04_amd64.deb"
+            get_codspeed_valgrind_binary(&system_info).unwrap().url(),
+            @"https://github.com/CodSpeedHQ/valgrind-codspeed/releases/download/3.26.0-0codspeed2/valgrind_3.26.0-0codspeed2_ubuntu-22.04_amd64.deb"
         );
     }
 
     #[test]
-    fn test_system_info_to_codspeed_valgrind_version_ubuntu_24() {
+    fn test_system_info_to_codspeed_valgrind_url_ubuntu_24() {
         let system_info = SystemInfo {
             os: SupportedOs::Linux(LinuxDistribution::Ubuntu {
                 version: "24.04".into(),
@@ -215,13 +215,13 @@ mod tests {
             ..SystemInfo::test()
         };
         assert_snapshot!(
-            get_codspeed_valgrind_filename(&system_info).unwrap(),
-            @"valgrind_3.26.0-0codspeed2_ubuntu-24.04_amd64.deb"
+            get_codspeed_valgrind_binary(&system_info).unwrap().url(),
+            @"https://github.com/CodSpeedHQ/valgrind-codspeed/releases/download/3.26.0-0codspeed2/valgrind_3.26.0-0codspeed2_ubuntu-24.04_amd64.deb"
         );
     }
 
     #[test]
-    fn test_system_info_to_codspeed_valgrind_version_debian() {
+    fn test_system_info_to_codspeed_valgrind_url_debian() {
         let system_info = SystemInfo {
             os: SupportedOs::Linux(LinuxDistribution::Debian {
                 version: "12".into(),
@@ -230,13 +230,13 @@ mod tests {
             ..SystemInfo::test()
         };
         assert_snapshot!(
-            get_codspeed_valgrind_filename(&system_info).unwrap(),
-            @"valgrind_3.26.0-0codspeed2_ubuntu-22.04_amd64.deb"
+            get_codspeed_valgrind_binary(&system_info).unwrap().url(),
+            @"https://github.com/CodSpeedHQ/valgrind-codspeed/releases/download/3.26.0-0codspeed2/valgrind_3.26.0-0codspeed2_ubuntu-22.04_amd64.deb"
         );
     }
 
     #[test]
-    fn test_system_info_to_codspeed_valgrind_version_ubuntu_arm() {
+    fn test_system_info_to_codspeed_valgrind_url_ubuntu_arm() {
         let system_info = SystemInfo {
             os: SupportedOs::Linux(LinuxDistribution::Ubuntu {
                 version: "22.04".into(),
@@ -245,31 +245,31 @@ mod tests {
             ..SystemInfo::test()
         };
         assert_snapshot!(
-            get_codspeed_valgrind_filename(&system_info).unwrap(),
-            @"valgrind_3.26.0-0codspeed2_ubuntu-22.04_arm64.deb"
+            get_codspeed_valgrind_binary(&system_info).unwrap().url(),
+            @"https://github.com/CodSpeedHQ/valgrind-codspeed/releases/download/3.26.0-0codspeed2/valgrind_3.26.0-0codspeed2_ubuntu-22.04_arm64.deb"
         );
     }
 
     #[test]
-    fn test_codspeed_valgrind_filename_unsupported_os() {
+    fn test_codspeed_valgrind_unsupported_os() {
         let system_info = SystemInfo {
             os: SupportedOs::Macos {
                 version: "14.0".into(),
             },
             ..SystemInfo::test()
         };
-        assert!(get_codspeed_valgrind_filename(&system_info).is_err());
+        assert!(get_codspeed_valgrind_binary(&system_info).is_err());
     }
 
     #[test]
-    fn test_codspeed_valgrind_filename_unsupported_distro() {
+    fn test_codspeed_valgrind_unsupported_distro() {
         let system_info = SystemInfo {
             os: SupportedOs::Linux(LinuxDistribution::Ubuntu {
                 version: "20.04".into(),
             }),
             ..SystemInfo::test()
         };
-        assert!(get_codspeed_valgrind_filename(&system_info).is_err());
+        assert!(get_codspeed_valgrind_binary(&system_info).is_err());
     }
 
     #[test]
