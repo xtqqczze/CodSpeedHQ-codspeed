@@ -2,7 +2,7 @@ use crate::executor::ExecutorName;
 use crate::executor::ExecutorSupport;
 use crate::executor::ToolStatus;
 use crate::executor::helpers::command::CommandBuilder;
-use crate::executor::helpers::env::get_base_injected_env;
+use crate::executor::helpers::env::{build_path_env, get_base_injected_env};
 use crate::executor::helpers::get_bench_command::get_bench_command;
 use crate::executor::helpers::run_command_with_log_pipe::run_command_with_log_pipe_and_callback;
 use crate::executor::helpers::run_with_env::wrap_with_env;
@@ -35,7 +35,16 @@ impl MemoryExecutor {
     fn build_memtrack_command(
         execution_context: &ExecutionContext,
     ) -> Result<(MemtrackIpcServer, CommandBuilder, NamedTempFile)> {
-        // FIXME: We only support native languages for now
+        let mut extra_env = get_base_injected_env(
+            RunnerMode::Memory,
+            &execution_context.profile_folder,
+            &execution_context.config,
+        );
+
+        extra_env.insert(
+            "PATH".into(),
+            build_path_env(execution_context.config.enable_introspection)?,
+        );
 
         // Setup memtrack IPC server
         let (ipc_server, server_name) = ipc::IpcOneShotServer::new()?;
@@ -55,12 +64,6 @@ impl MemoryExecutor {
             cmd_builder.current_dir(abs_cwd);
         }
 
-        // Wrap command with environment forwarding
-        let extra_env = get_base_injected_env(
-            RunnerMode::Memory,
-            &execution_context.profile_folder,
-            &execution_context.config,
-        );
         let (cmd_builder, env_file) = wrap_with_env(cmd_builder, &extra_env)?;
 
         Ok((ipc_server, cmd_builder, env_file))
