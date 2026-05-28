@@ -218,19 +218,35 @@ mod tests {
     #[test_with::env(GITHUB_ACTIONS)]
     #[tokio::test(flavor = "multi_thread")]
     async fn all_pinned_binaries_match_their_declared_sha256() {
-        let results = futures::future::join_all(all_pinned_binaries().map(|binary| async move {
-            let temp = NamedTempFile::new().expect("failed to create temp file");
-            download_pinned_file(binary, temp.path())
-                .await
-                .map_err(|e| format!("{binary:?} ({}): {e}", binary.url()))
-        }))
-        .await;
+        // Downloads occasionally fail with a 200 with GitHub...
+        const MAX_ATTEMPTS: u32 = 3;
 
-        let failures: Vec<_> = results.into_iter().filter_map(Result::err).collect();
-        assert!(
-            failures.is_empty(),
-            "pinned binaries failed verification:\n  - {}",
-            failures.join("\n  - "),
+        let mut last_failures: Vec<String> = Vec::new();
+        for attempt in 1..=MAX_ATTEMPTS {
+            let results =
+                futures::future::join_all(all_pinned_binaries().map(|binary| async move {
+                    let temp = NamedTempFile::new().expect("failed to create temp file");
+                    download_pinned_file(binary, temp.path())
+                        .await
+                        .map_err(|e| format!("{binary:?} ({}): {e}", binary.url()))
+                }))
+                .await;
+
+            last_failures = results.into_iter().filter_map(Result::err).collect();
+            if last_failures.is_empty() {
+                return;
+            }
+
+            eprintln!(
+                "attempt {attempt}/{MAX_ATTEMPTS} failed for {} binaries:\n  - {}",
+                last_failures.len(),
+                last_failures.join("\n  - "),
+            );
+        }
+
+        panic!(
+            "pinned binaries failed verification after {MAX_ATTEMPTS} attempts:\n  - {}",
+            last_failures.join("\n  - "),
         );
     }
 }
