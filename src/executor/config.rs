@@ -42,6 +42,15 @@ pub enum SimulationTool {
     Tracegrind,
 }
 
+/// The profiler to use for walltime mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum WalltimeProfiler {
+    /// Use perf to collect profiling data (Linux).
+    Perf,
+    /// Use samply to collect profiling data (macOS).
+    Samply,
+}
+
 /// Run-level configuration owned by the orchestrator.
 ///
 /// Holds all parameters that are constant across benchmark targets within a run,
@@ -61,6 +70,8 @@ pub struct OrchestratorConfig {
     pub enable_profiler: bool,
     /// Stack unwinding mode for perf (if enabled)
     pub perf_unwinding_mode: Option<UnwindingMode>,
+    /// Profiler override for walltime mode (if None, selected based on the platform)
+    pub walltime_profiler: Option<WalltimeProfiler>,
 
     pub simulation_tool: SimulationTool,
 
@@ -201,6 +212,7 @@ impl OrchestratorConfig {
             modes: vec![RunnerMode::Simulation],
             instruments: Instruments::test(),
             perf_unwinding_mode: None,
+            walltime_profiler: None,
             enable_profiler: false,
             simulation_tool: SimulationTool::default(),
             profile_folder: None,

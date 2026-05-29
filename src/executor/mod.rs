@@ -17,7 +17,7 @@ use crate::prelude::*;
 use crate::runner_mode::RunnerMode;
 use crate::system::SystemInfo;
 use async_trait::async_trait;
-pub use config::{BenchmarkTarget, ExecutorConfig};
+pub use config::{BenchmarkTarget, ExecutorConfig, WalltimeProfiler};
 pub use execution_context::ExecutionContext;
 pub use interfaces::ExecutorName;
 pub use orchestrator::Orchestrator;
@@ -41,11 +41,14 @@ impl Display for RunnerMode {
 
 pub const EXECUTOR_TARGET: &str = "executor";
 
-pub fn get_executor_from_mode(mode: &RunnerMode) -> Box<dyn Executor> {
+pub fn get_executor_from_mode(
+    mode: &RunnerMode,
+    walltime_profiler: Option<WalltimeProfiler>,
+) -> Box<dyn Executor> {
     match mode {
         #[allow(deprecated)]
         RunnerMode::Instrumentation | RunnerMode::Simulation => Box::new(ValgrindExecutor),
-        RunnerMode::Walltime => Box::new(WallTimeExecutor::new()),
+        RunnerMode::Walltime => Box::new(WallTimeExecutor::new(walltime_profiler)),
         RunnerMode::Memory => Box::new(MemoryExecutor),
     }
 }
@@ -53,7 +56,7 @@ pub fn get_executor_from_mode(mode: &RunnerMode) -> Box<dyn Executor> {
 pub fn get_all_executors() -> Vec<Box<dyn Executor>> {
     vec![
         Box::new(ValgrindExecutor),
-        Box::new(WallTimeExecutor::new()),
+        Box::new(WallTimeExecutor::new(None)),
         Box::new(MemoryExecutor),
     ]
 }

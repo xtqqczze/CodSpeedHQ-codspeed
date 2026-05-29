@@ -119,7 +119,7 @@ impl Orchestrator {
             .iter()
             .flat_map(|(cmd, label, uses_exec_harness)| {
                 modes.iter().map(move |mode| {
-                    let executor_name = get_executor_from_mode(mode).name();
+                    let executor_name = get_executor_from_mode(mode, None).name();
                     ExecutorTarget {
                         command: cmd.clone(),
                         mode,
@@ -145,7 +145,7 @@ impl Orchestrator {
             let config = self
                 .config
                 .executor_config_for_command(part.command, !part.uses_exec_harness);
-            let mut executor = get_executor_from_mode(part.mode);
+            let mut executor = get_executor_from_mode(part.mode, self.config.walltime_profiler);
             let profile_folder =
                 self.resolve_profile_folder(&executor.name(), run_part_index, total_parts)?;
 

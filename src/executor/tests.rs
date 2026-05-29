@@ -216,7 +216,7 @@ mod walltime {
 
         WALLTIME_INIT
             .get_or_init(|| async {
-                let executor = WallTimeExecutor::new();
+                let executor = WallTimeExecutor::new(None);
                 let system_info = SystemInfo::new().unwrap();
                 executor.setup(&system_info, None).await.unwrap();
             })
@@ -229,7 +229,7 @@ mod walltime {
             .await;
         let permit = semaphore.acquire().await.unwrap();
 
-        (permit, WallTimeExecutor::new())
+        (permit, WallTimeExecutor::new(None))
     }
 
     fn walltime_config(command: &str, enable_profiler: bool) -> ExecutorConfig {

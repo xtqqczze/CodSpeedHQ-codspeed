@@ -6,6 +6,7 @@ use super::profiler::samply::SamplyProfiler;
 use crate::executor::Executor;
 use crate::executor::ExecutorConfig;
 use crate::executor::ToolStatus;
+use crate::executor::config::WalltimeProfiler;
 use crate::executor::helpers::command::CommandBuilder;
 use crate::executor::helpers::env::{build_path_env, get_base_injected_env};
 use crate::executor::helpers::get_bench_command::get_bench_command;
@@ -88,33 +89,26 @@ pub struct WallTimeExecutor {
     benchmark_state: OnceCell<(FifoBenchmarkData, ExecutionTimestamps)>,
 }
 
-fn select_profiler() -> Option<Box<dyn Profiler>> {
-    const PROFILER_OVERRIDE_ENV: &str = "CODSPEED_WALLTIME_PROFILER";
-
-    match std::env::var(PROFILER_OVERRIDE_ENV).ok().as_deref() {
-        Some("perf") => return Some(Box::new(PerfProfiler::new())),
-        Some("samply") => return Some(Box::new(SamplyProfiler::new())),
-        Some(other) => {
-            warn!(
-                "Ignoring unknown {PROFILER_OVERRIDE_ENV}={other:?}; expected `perf` or `samply`."
-            );
+fn select_profiler(profiler_override: Option<WalltimeProfiler>) -> Option<Box<dyn Profiler>> {
+    match profiler_override {
+        Some(WalltimeProfiler::Perf) => Some(Box::new(PerfProfiler::new())),
+        Some(WalltimeProfiler::Samply) => Some(Box::new(SamplyProfiler::new())),
+        None => {
+            if cfg!(target_os = "linux") {
+                Some(Box::new(PerfProfiler::new()))
+            } else if cfg!(target_os = "macos") {
+                Some(Box::new(SamplyProfiler::new()))
+            } else {
+                None
+            }
         }
-        None => {}
-    }
-
-    if cfg!(target_os = "linux") {
-        Some(Box::new(PerfProfiler::new()))
-    } else if cfg!(target_os = "macos") {
-        Some(Box::new(SamplyProfiler::new()))
-    } else {
-        None
     }
 }
 
 impl WallTimeExecutor {
-    pub fn new() -> Self {
+    pub fn new(profiler_override: Option<WalltimeProfiler>) -> Self {
         Self {
-            profiler: select_profiler(),
+            profiler: select_profiler(profiler_override),
             benchmark_state: OnceCell::new(),
         }
     }
