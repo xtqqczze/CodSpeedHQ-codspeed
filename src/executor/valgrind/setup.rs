@@ -125,6 +125,10 @@ pub fn get_valgrind_status() -> ToolStatus {
     let version = String::from_utf8_lossy(&version_output.stdout)
         .trim()
         .to_string();
+    debug!(
+        "Found installed valgrind version: {version} (expecting {} or higher)",
+        VALGRIND_CODSPEED_VERSION_STRING.as_str()
+    );
 
     ToolStatus {
         tool_name,
