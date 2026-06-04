@@ -9,13 +9,18 @@ use std::sync::LazyLock;
 /// download (combined with `VALGRIND_DEB_REV`) and for detecting an already
 /// installed copy.
 pub const VALGRIND_CODSPEED_VERSION: Version = Version::new(3, 26, 0);
+/// CodSpeed repackaging iteration of `VALGRIND_CODSPEED_VERSION`. Bumps when
+/// the .deb is repackaged without a new upstream valgrind release. Appears in
+/// the .deb package version (`3.26.0-0codspeed3`) and in `valgrind --version`
+/// output (`valgrind-3.26.0.codspeed3`).
+pub const VALGRIND_CODSPEED_ITERATION: u32 = 3;
 /// Suffix appended to `VALGRIND_CODSPEED_VERSION` to form the .deb package version.
-/// Bumps when the .deb is repackaged without a new upstream valgrind release.
-const VALGRIND_DEB_REV: &str = "0codspeed3";
-/// String form of `VALGRIND_CODSPEED_VERSION` as it appears in `valgrind --version`
+static VALGRIND_DEB_REV: LazyLock<String> =
+    LazyLock::new(|| format!("0codspeed{VALGRIND_CODSPEED_ITERATION}"));
+/// String form of the pinned version as it appears in `valgrind --version`
 /// output, used to identify a CodSpeed build at runtime.
 pub static VALGRIND_CODSPEED_VERSION_STRING: LazyLock<String> =
-    LazyLock::new(|| format!("{VALGRIND_CODSPEED_VERSION}.codspeed"));
+    LazyLock::new(|| format!("{VALGRIND_CODSPEED_VERSION}.codspeed{VALGRIND_CODSPEED_ITERATION}"));
 
 #[derive(Debug, Clone, Copy)]
 struct BinaryPin {
@@ -74,7 +79,7 @@ pub struct ValgrindTarget {
 }
 
 static VALGRIND_DEB_VERSION: LazyLock<String> =
-    LazyLock::new(|| format!("{VALGRIND_CODSPEED_VERSION}-{VALGRIND_DEB_REV}"));
+    LazyLock::new(|| format!("{VALGRIND_CODSPEED_VERSION}-{}", VALGRIND_DEB_REV.as_str()));
 const VALGRIND_DEB_URL_TEMPLATE: &str = "https://github.com/CodSpeedHQ/valgrind-codspeed/releases/download/{version}/valgrind_{version}_ubuntu-{distro_version}_{arch}.deb";
 
 impl ValgrindTarget {

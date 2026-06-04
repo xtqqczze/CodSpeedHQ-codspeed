@@ -1,6 +1,6 @@
 use crate::binary_pins::{
-    Arch, DistroVersion, PinnedBinary, VALGRIND_CODSPEED_VERSION, VALGRIND_CODSPEED_VERSION_STRING,
-    ValgrindTarget,
+    Arch, DistroVersion, PinnedBinary, VALGRIND_CODSPEED_ITERATION, VALGRIND_CODSPEED_VERSION,
+    VALGRIND_CODSPEED_VERSION_STRING, ValgrindTarget,
 };
 use crate::cli::run::helpers::download_pinned_file;
 use crate::executor::helpers::apt;
@@ -126,45 +126,47 @@ pub fn get_valgrind_status() -> ToolStatus {
         .trim()
         .to_string();
 
+    ToolStatus {
+        tool_name,
+        status: classify_valgrind_version(version),
+    }
+}
+
+/// Classify a trimmed `valgrind --version` output against the pinned CodSpeed
+/// valgrind version.
+fn classify_valgrind_version(version: String) -> ToolInstallStatus {
     // Check if it's a codspeed version
     if !version.contains(".codspeed") {
-        return ToolStatus {
-            tool_name,
-            status: ToolInstallStatus::IncorrectVersion {
-                version,
-                message: "not a CodSpeed build".to_string(),
-            },
+        return ToolInstallStatus::IncorrectVersion {
+            version,
+            message: "not a CodSpeed build".to_string(),
         };
     }
 
     // Parse the installed version
     let Some(installed_version) = parse_valgrind_codspeed_version(&version) else {
-        return ToolStatus {
-            tool_name,
-            status: ToolInstallStatus::IncorrectVersion {
-                version,
-                message: "could not parse version".to_string(),
-            },
+        return ToolInstallStatus::IncorrectVersion {
+            version,
+            message: "could not parse version".to_string(),
         };
     };
 
-    if installed_version.semver < VALGRIND_CODSPEED_VERSION {
-        return ToolStatus {
-            tool_name,
-            status: ToolInstallStatus::IncorrectVersion {
-                version,
-                message: format!(
-                    "version too old, expecting {} or higher",
-                    VALGRIND_CODSPEED_VERSION_STRING.as_str()
-                ),
-            },
+    // Legacy `.codspeed` builds (no iteration suffix) predate iteration
+    // tracking, so they count as iteration 0.
+    let installed_iteration = installed_version.codspeed_iteration.unwrap_or(0);
+    let is_version_outdated = (installed_version.semver, installed_iteration)
+        < (VALGRIND_CODSPEED_VERSION, VALGRIND_CODSPEED_ITERATION);
+    if is_version_outdated {
+        return ToolInstallStatus::IncorrectVersion {
+            version,
+            message: format!(
+                "version too old, expecting {} or higher",
+                VALGRIND_CODSPEED_VERSION_STRING.as_str()
+            ),
         };
     }
 
-    ToolStatus {
-        tool_name,
-        status: ToolInstallStatus::Installed { version },
-    }
+    ToolInstallStatus::Installed { version }
 }
 
 fn is_valgrind_installed() -> bool {
@@ -328,6 +330,57 @@ mod tests {
 
         assert_ne!(legacy, v1);
         assert_ne!(v1, v2);
+    }
+
+    #[test]
+    fn test_classify_same_version_older_iteration_is_rejected() {
+        // Pinned is 3.26.0-0codspeed3: a cached 3.26.0.codspeed2 build is the
+        // same upstream valgrind but an older repackaging, so it must be
+        // rejected and reinstalled.
+        let status = classify_valgrind_version("valgrind-3.26.0.codspeed2".to_string());
+        assert!(
+            matches!(status, ToolInstallStatus::IncorrectVersion { .. }),
+            "stale codspeed iteration must be rejected, got: Installed"
+        );
+    }
+
+    #[test]
+    fn test_classify_legacy_suffix_with_pinned_semver_is_rejected() {
+        // Old builds report just `.codspeed` (no iteration); for the pinned
+        // upstream version they predate the pinned iteration.
+        let version = format!("valgrind-{VALGRIND_CODSPEED_VERSION}.codspeed");
+        let status = classify_valgrind_version(version);
+        assert!(matches!(status, ToolInstallStatus::IncorrectVersion { .. }));
+    }
+
+    #[test]
+    fn test_classify_pinned_iteration_is_installed() {
+        let version =
+            format!("valgrind-{VALGRIND_CODSPEED_VERSION}.codspeed{VALGRIND_CODSPEED_ITERATION}");
+        let status = classify_valgrind_version(version);
+        assert!(matches!(status, ToolInstallStatus::Installed { .. }));
+    }
+
+    #[test]
+    fn test_classify_newer_iteration_is_installed() {
+        let version = format!(
+            "valgrind-{VALGRIND_CODSPEED_VERSION}.codspeed{}",
+            VALGRIND_CODSPEED_ITERATION + 1
+        );
+        let status = classify_valgrind_version(version);
+        assert!(matches!(status, ToolInstallStatus::Installed { .. }));
+    }
+
+    #[test]
+    fn test_classify_newer_semver_with_legacy_suffix_is_installed() {
+        let status = classify_valgrind_version("valgrind-3.99.0.codspeed".to_string());
+        assert!(matches!(status, ToolInstallStatus::Installed { .. }));
+    }
+
+    #[test]
+    fn test_classify_non_codspeed_build_is_rejected() {
+        let status = classify_valgrind_version("valgrind-3.26.0".to_string());
+        assert!(matches!(status, ToolInstallStatus::IncorrectVersion { .. }));
     }
 
     #[test]
