@@ -177,7 +177,7 @@ fn is_valgrind_installed() -> bool {
     matches!(
         get_valgrind_status().status,
         ToolInstallStatus::Installed { .. }
-    )
+    ) && apt::is_package_installed("libc6-dbg")
 }
 
 pub async fn install_valgrind(
@@ -193,10 +193,14 @@ pub async fn install_valgrind(
             let binary = get_codspeed_valgrind_binary(system_info)?;
             let deb_path = env::temp_dir().join("valgrind-codspeed.deb");
             download_pinned_file(binary, &deb_path).await?;
-            apt::install(system_info, &[deb_path.to_str().unwrap()])?;
+
+            // Install libc debug symbols alongside valgrind, as GitHub runners
+            // do not include them by default. Keeping them in the same install
+            // call puts them under the same caching and idempotency logic.
+            apt::install(system_info, &[deb_path.to_str().unwrap(), "libc6-dbg"])?;
 
             // Return package names for caching
-            Ok(vec!["valgrind".to_string()])
+            Ok(vec!["valgrind".to_string(), "libc6-dbg".to_string()])
         },
     )
     .await
