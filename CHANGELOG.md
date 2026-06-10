@@ -5,6 +5,24 @@
 
 
 
+## [4.17.5] - 2026-06-10
+
+### <!-- 0 -->🚀 Features
+- Add optional `mode` arg to target setup by @fargito in [#397](https://github.com/CodSpeedHQ/runner/pull/397)
+- Restore DYLD_INSERT_LIBRARIES from SAMPLY_ alias by @not-matthias
+- Restore DYLD_INSERT_LIBRARIES from SAMPLY_ alias by @not-matthias
+
+### <!-- 1 -->🐛 Bug Fixes
+- Use %p in log file path to avoid multi-process overwrite by @not-matthias in [#381](https://github.com/CodSpeedHQ/runner/pull/381)
+
+### <!-- 10 -->💼 Other
+- Enable set -u to match go.sh by @not-matthias in [#389](https://github.com/CodSpeedHQ/runner/pull/389)
+
+### <!-- 7 -->⚙️ Internals
+- Bump samply by @not-matthias
+- Bump samply to fix sigkill by @not-matthias in [#386](https://github.com/CodSpeedHQ/runner/pull/386)
+
+
 ## [4.17.4] - 2026-06-05
 
 ### <!-- 1 -->🐛 Bug Fixes
@@ -1254,6 +1272,7 @@
 - Add linting components to the toolchain by @art049
 
 
+[4.17.5]: https://github.com/CodSpeedHQ/runner/compare/v4.17.4..v4.17.5
 [4.17.4]: https://github.com/CodSpeedHQ/runner/compare/v4.17.3..v4.17.4
 [4.17.3]: https://github.com/CodSpeedHQ/runner/compare/v4.17.2..v4.17.3
 [4.17.2]: https://github.com/CodSpeedHQ/runner/compare/v4.17.1..v4.17.2
