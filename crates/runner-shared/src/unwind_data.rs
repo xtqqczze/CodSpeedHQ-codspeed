@@ -1,3 +1,29 @@
+//! Serialized unwind data captured per shared object, used to unwind stacks
+//! during post-processing.
+//!
+//! [`UnwindData`] aliases the current version ([`UnwindDataV4`]). On-disk
+//! artifacts are wrapped in `UnwindDataCompat` so older versions can still be
+//! deserialized and (where possible) upgraded via `From` impls.
+//!
+//! # Version history
+//!
+//! - **V1** — Original format. Carries both the pid-agnostic unwind tables
+//!   (`eh_frame`/`eh_frame_hdr`) and per-pid load info (`avma_range`,
+//!   `base_avma`) in a single struct.
+//! - **V2** — Adds `timestamp: Option<u64>` to mark when the data was captured
+//!   (`None` = valid for the whole execution). Upgradable from V1.
+//! - **V3** — Splits per-pid load info out into [`ProcessUnwindData`], leaving
+//!   only the deduplicated, pid-agnostic tables. *Breaking*: cannot be parsed
+//!   as V2 (the per-pid fields are gone). Upgradable from V2.
+//! - **V4** — Makes `eh_frame_hdr`/`eh_frame_hdr_svma` optional. The hdr is just
+//!   a binary-search index into `.eh_frame`; some binaries (e.g. Valgrind's
+//!   statically-linked tools, linked without `ld --eh-frame-hdr`) omit it and
+//!   the parser rebuilds the index from `.eh_frame`. Upgradable from V3.
+//!
+//! When adding a version: add a `UnwindDataV{N}` struct, a `From<V{N-1}>` impl
+//! (if non-breaking), a `UnwindDataCompat` variant, update the `UnwindData`
+//! alias and `parse`/`save_to`, and append an entry above.
+
 use core::{
     fmt::Debug,
     hash::{Hash, Hasher},
