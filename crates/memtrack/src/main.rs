@@ -100,6 +100,9 @@ fn track_command(
             }
         }))
     } else {
+        // Without IPC, nothing toggles the tracking_enabled map, so events would
+        // be dropped by the eBPF is_enabled() check. Enable it up front.
+        tracker_arc.lock().unwrap().enable()?;
         None
     };
 
