@@ -1,5 +1,6 @@
 use crate::executor::{
-    Executor, ExecutorSupport, ToolInstallStatus, get_all_executors, get_executor_from_mode,
+    Executor, ExecutorSupport, PrivilegeStatus, ToolInstallStatus, get_all_executors,
+    get_executor_from_mode,
 };
 use crate::prelude::*;
 use crate::runner_mode::RunnerMode;
@@ -118,6 +119,15 @@ pub fn status(modes: &[RunnerMode]) -> Result<()> {
                         tool_status.tool_name,
                         version
                     );
+                    match executor.privilege_status() {
+                        Some(PrivilegeStatus::Satisfied { detail }) => {
+                            info!("    {} privileges: {}", check_mark(), detail);
+                        }
+                        Some(PrivilegeStatus::Missing { message }) => {
+                            info!("    {} privileges: {}", cross_mark(), message);
+                        }
+                        None => {}
+                    }
                 }
                 ToolInstallStatus::IncorrectVersion { version, message } => {
                     info!(

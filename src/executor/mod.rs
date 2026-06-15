@@ -76,6 +76,15 @@ pub enum ToolInstallStatus {
     NotInstalled,
 }
 
+/// Readiness of any elevated privileges an executor needs beyond a plain install
+/// (e.g. file capabilities). Reported alongside [`ToolStatus`] in `setup status`.
+pub enum PrivilegeStatus {
+    /// Privileges are in place; `detail` explains how (root, capabilities granted, …).
+    Satisfied { detail: String },
+    /// Privileges are missing; `message` tells the user how to obtain them.
+    Missing { message: String },
+}
+
 /// How well a given executor runs on a given [`SupportedOs`].
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum ExecutorSupport {
@@ -93,6 +102,13 @@ pub trait Executor {
 
     /// Report the installation status of the tool(s) this executor depends on.
     fn tool_status(&self) -> Option<ToolStatus>;
+
+    /// Report whether the elevated privileges this executor needs are in place.
+    /// Defaults to `None` for executors that need none. Only consulted once the
+    /// tool itself is installed.
+    fn privilege_status(&self) -> Option<PrivilegeStatus> {
+        None
+    }
 
     /// Declare how well this executor runs on the host system. Drives whether `setup()` is invoked
     /// (only when [`ExecutorSupport::FullySupported`]) and whether we bail out of running the

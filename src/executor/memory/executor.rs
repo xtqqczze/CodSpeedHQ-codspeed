@@ -1,5 +1,6 @@
 use crate::executor::ExecutorName;
 use crate::executor::ExecutorSupport;
+use crate::executor::PrivilegeStatus;
 use crate::executor::ToolStatus;
 use crate::executor::helpers::command::CommandBuilder;
 use crate::executor::helpers::env::{build_path_env, get_base_injected_env};
@@ -101,6 +102,22 @@ impl Executor for MemoryExecutor {
 
     fn tool_status(&self) -> Option<ToolStatus> {
         Some(get_memtrack_status())
+    }
+
+    fn privilege_status(&self) -> Option<PrivilegeStatus> {
+        if is_root_user() {
+            return Some(PrivilegeStatus::Satisfied {
+                detail: "running as root".to_string(),
+            });
+        }
+        if has_memtrack_capabilities() {
+            return Some(PrivilegeStatus::Satisfied {
+                detail: "capabilities granted".to_string(),
+            });
+        }
+        Some(PrivilegeStatus::Missing {
+            message: "capabilities missing, run `codspeed setup --mode memory`".to_string(),
+        })
     }
 
     fn support_level(&self, system_info: &SystemInfo) -> ExecutorSupport {
