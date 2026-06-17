@@ -36,6 +36,10 @@ fn get_valgrind_args(tool: &SimulationTool, config: &ExecutorConfig) -> Vec<Stri
 
     match tool {
         SimulationTool::Callgrind => {
+            if config.cycle_estimation {
+                args.push("--cycle-estimation=yes".to_string());
+            }
+
             args.push("--tool=callgrind".to_string());
             args.push("--compress-strings=no".to_string());
             args.push("--combine-dumps=yes".to_string());

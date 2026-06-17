@@ -91,6 +91,8 @@ pub struct OrchestratorConfig {
     pub extra_env: HashMap<String, String>,
     /// Enable valgrind's --fair-sched option.
     pub fair_sched: bool,
+    /// Enable valgrind's --cycle-estimation option.
+    pub cycle_estimation: bool,
 }
 
 /// Per-execution configuration passed to executors.
@@ -124,6 +126,8 @@ pub struct ExecutorConfig {
     pub enable_introspection: bool,
     /// Enable valgrind's --fair-sched option.
     pub fair_sched: bool,
+    /// Enable valgrind's --cycle-estimation option.
+    pub cycle_estimation: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -193,6 +197,7 @@ impl OrchestratorConfig {
             extra_env: self.extra_env.clone(),
             enable_introspection,
             fair_sched: self.fair_sched,
+            cycle_estimation: self.cycle_estimation,
         }
     }
 }
@@ -225,6 +230,7 @@ impl OrchestratorConfig {
             poll_results_options: PollResultsOptions::new(false, None),
             extra_env: HashMap::new(),
             fair_sched: false,
+            cycle_estimation: false,
         }
     }
 }

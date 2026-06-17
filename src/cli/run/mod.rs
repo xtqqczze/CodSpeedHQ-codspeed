@@ -78,6 +78,7 @@ impl RunArgs {
                 },
                 experimental: ExperimentalArgs {
                     experimental_fair_sched: false,
+                    cycle_estimation: false,
                 },
             },
             instruments: vec![],
@@ -127,6 +128,7 @@ fn build_orchestrator_config(
         poll_results_options,
         extra_env: HashMap::new(),
         fair_sched: args.shared.experimental.experimental_fair_sched,
+        cycle_estimation: args.shared.experimental.cycle_estimation,
     })
 }
 
