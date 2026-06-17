@@ -7,7 +7,6 @@ use crate::cli::run::logger::Logger;
 use crate::executor::config::BenchmarkTarget;
 use crate::executor::config::OrchestratorConfig;
 use crate::executor::helpers::profile_folder::create_profile_folder;
-use crate::local_logger::rolling_buffer::{activate_rolling_buffer, deactivate_rolling_buffer};
 use crate::prelude::*;
 use crate::run_environment::{self, RunEnvironment, RunEnvironmentProvider};
 use crate::runner_mode::RunnerMode;
@@ -151,20 +150,18 @@ impl Orchestrator {
 
             let ctx = ExecutionContext::new(config, profile_folder);
 
-            if !self.config.show_full_output {
-                activate_rolling_buffer(&part.label);
-            }
+            let rolling_buffer_label =
+                (!self.config.show_full_output).then_some(part.label.as_str());
 
-            let result = run_executor(executor.as_mut(), self, &ctx, setup_cache_dir).await;
+            run_executor(
+                executor.as_mut(),
+                self,
+                &ctx,
+                setup_cache_dir,
+                rolling_buffer_label,
+            )
+            .await?;
 
-            // Always tear the rolling buffer down before propagating the error,
-            // otherwise deferred warnings and the final error message would be
-            // swallowed by the deferred-logs queue.
-            if !self.config.show_full_output {
-                deactivate_rolling_buffer();
-            }
-
-            result?;
             all_completed_runs.push((ctx, executor.name()));
         }
 
