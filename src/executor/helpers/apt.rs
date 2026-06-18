@@ -6,7 +6,7 @@ use std::process::Command;
 
 const METADATA_FILENAME: &str = "./tmp/codspeed-cache-metadata.txt";
 
-fn is_system_compatible(system_info: &SystemInfo) -> bool {
+pub fn is_system_compatible(system_info: &SystemInfo) -> bool {
     matches!(system_info.os, SupportedOs::Linux(ref distro) if distro.is_supported())
 }
 

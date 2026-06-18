@@ -173,11 +173,22 @@ fn classify_valgrind_version(version: String) -> ToolInstallStatus {
     ToolInstallStatus::Installed { version }
 }
 
-fn is_valgrind_installed() -> bool {
-    matches!(
+fn is_valgrind_installed(system_info: &SystemInfo) -> bool {
+    if !matches!(
         get_valgrind_status().status,
         ToolInstallStatus::Installed { .. }
-    ) && apt::is_package_installed("libc6-dbg")
+    ) {
+        return false;
+    }
+
+    // `libc6-dbg` is only relevant on apt-based systems; on others (e.g. NixOS)
+    // `dpkg` is absent and would spuriously report it as missing.
+    if apt::is_system_compatible(system_info) {
+        apt::is_package_installed("libc6-dbg")
+    } else {
+        debug!("Skipping libc6-dbg check on non-apt-based system");
+        true
+    }
 }
 
 pub async fn install_valgrind(
@@ -187,7 +198,7 @@ pub async fn install_valgrind(
     apt::install_cached(
         system_info,
         setup_cache_dir,
-        is_valgrind_installed,
+        || is_valgrind_installed(system_info),
         || async {
             debug!("Installing valgrind");
             let binary = get_codspeed_valgrind_binary(system_info)?;
