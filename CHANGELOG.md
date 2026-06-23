@@ -5,6 +5,20 @@
 
 
 
+## [4.18.0] - 2026-06-23
+
+### <!-- 0 -->🚀 Features
+- Bump valgrind-codspeed to 3.26.0-0codspeed4
+- Bump samply by @GuillaumeLagrange in [#415](https://github.com/CodSpeedHQ/runner/pull/415)
+- Set env var to have node dump inlining information by @GuillaumeLagrange
+- Change isolation logic to include samply and non root fallback by @GuillaumeLagrange
+- Add experimental --cycle-estimation flag by @not-matthias in [#412](https://github.com/CodSpeedHQ/runner/pull/412)
+- Make samply-codspeed a submodule rather than git rev with cargo by @GuillaumeLagrange in [#416](https://github.com/CodSpeedHQ/runner/pull/416)
+
+### <!-- 1 -->🐛 Bug Fixes
+- Honor locally-installed valgrind on non-apt systems by @not-matthias in [#414](https://github.com/CodSpeedHQ/runner/pull/414)
+
+
 ## [4.17.6] - 2026-06-18
 
 ### <!-- 0 -->🚀 Features
@@ -1307,6 +1321,7 @@
 - Add linting components to the toolchain by @art049
 
 
+[4.18.0]: https://github.com/CodSpeedHQ/runner/compare/v4.17.6..v4.18.0
 [4.17.6]: https://github.com/CodSpeedHQ/runner/compare/v4.17.5..v4.17.6
 [4.17.5]: https://github.com/CodSpeedHQ/runner/compare/v4.17.4..v4.17.5
 [4.17.4]: https://github.com/CodSpeedHQ/runner/compare/v4.17.3..v4.17.4
