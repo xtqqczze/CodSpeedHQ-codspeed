@@ -25,6 +25,15 @@ pub struct ExperimentalArgs {
         env = "CODSPEED_CYCLE_ESTIMATION"
     )]
     pub cycle_estimation: bool,
+
+    /// Exclude memory allocation time from simulation results.
+    #[arg(
+        long,
+        default_value_t = false,
+        help_heading = "Experimental",
+        env = "CODSPEED_EXPERIMENTAL_EXCLUDE_ALLOCATIONS"
+    )]
+    pub experimental_exclude_allocations: bool,
 }
 
 impl ExperimentalArgs {
@@ -36,6 +45,9 @@ impl ExperimentalArgs {
         }
         if self.cycle_estimation {
             flags.push("--cycle-estimation");
+        }
+        if self.experimental_exclude_allocations {
+            flags.push("--experimental-exclude-allocations");
         }
         flags
     }
