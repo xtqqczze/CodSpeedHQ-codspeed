@@ -5,6 +5,12 @@
 
 
 
+## [4.18.2] - 2026-07-07
+
+### <!-- 1 -->🐛 Bug Fixes
+- Source forwarded env below memtrack's capability boundary by @not-matthias in [#439](https://github.com/CodSpeedHQ/runner/pull/439)
+
+
 ## [4.18.1] - 2026-06-24
 
 ### <!-- 0 -->🚀 Features
@@ -1330,6 +1336,7 @@
 - Add linting components to the toolchain by @art049
 
 
+[4.18.2]: https://github.com/CodSpeedHQ/runner/compare/v4.18.1..v4.18.2
 [4.18.1]: https://github.com/CodSpeedHQ/runner/compare/v4.18.0..v4.18.1
 [4.18.0]: https://github.com/CodSpeedHQ/runner/compare/v4.17.6..v4.18.0
 [4.17.6]: https://github.com/CodSpeedHQ/runner/compare/v4.17.5..v4.17.6
