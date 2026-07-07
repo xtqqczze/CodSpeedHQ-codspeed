@@ -6,6 +6,7 @@
 #include <bpf/bpf_tracing.h>
 
 #include "allocator.h"
+#include "attach.h"
 #include "event.h"
 #include "utils/event_helpers.h"
 #include "utils/map_helpers.h"
