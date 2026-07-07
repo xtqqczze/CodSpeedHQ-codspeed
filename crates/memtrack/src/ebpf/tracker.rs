@@ -36,12 +36,7 @@ impl Tracker {
     }
 
     pub fn attach_allocators(&mut self, libs: &[AllocatorLib]) -> Result<()> {
-        for allocator in libs {
-            self.bpf
-                .attach_allocator_probes(allocator.kind, &allocator.path)?;
-        }
-
-        Ok(())
+        self.bpf.attach_allocators(libs)
     }
 
     pub fn attach_allocator(&mut self, lib: &AllocatorLib) -> Result<()> {

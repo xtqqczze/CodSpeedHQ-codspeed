@@ -4,10 +4,11 @@ use libbpf_rs::skel::OpenSkel;
 use libbpf_rs::skel::SkelBuilder;
 use libbpf_rs::{MapCore, UprobeOpts};
 use paste::paste;
+use std::collections::HashMap;
 use std::mem::MaybeUninit;
 use std::path::Path;
 
-use crate::allocators::AllocatorKind;
+use crate::allocators::{AllocatorKind, AllocatorLib};
 use crate::ebpf::poller::RingBufferPoller;
 
 pub mod memtrack_skel {
@@ -15,15 +16,14 @@ pub mod memtrack_skel {
 }
 pub use memtrack_skel::*;
 
-/// Resolve symbol offset from .symtab to ensure that libbpf can find it. Otherwise
-/// it will print a warning at runtime.
-fn ensure_symbol_exists(lib_path: &Path, symbol_name: &str) -> Result<()> {
+/// Resolve libbpf attach targets for every defined symbol in `lib_path`.
+pub fn resolve_symbol_offsets(lib_path: &Path) -> Result<ResolvedSymbols> {
     use object::{Object, ObjectSymbol};
 
     let data = std::fs::read(lib_path)?;
     let file = object::File::parse(&*data)?;
+    let mut offsets = HashMap::new();
 
-    // Check both regular and dynamic symbols
     for symbol in file.symbols().chain(file.dynamic_symbols()) {
         if !symbol.is_definition() {
             continue;
@@ -33,120 +33,155 @@ fn ensure_symbol_exists(lib_path: &Path, symbol_name: &str) -> Result<()> {
             continue;
         };
 
-        if name == symbol_name {
-            let addr = symbol.address();
-            if addr != 0 {
-                return Ok(());
-            }
+        if let Some(file_offset) = symbol_file_offset(&file, &symbol) {
+            offsets.insert(name.to_owned(), file_offset);
         }
     }
 
-    bail!("Symbol {symbol_name} not found in {}", lib_path.display())
+    Ok(ResolvedSymbols { offsets })
 }
 
-/// Macro to attach a function with both entry and return probes.
-/// Also generates a `try_attach_*` variant that logs errors instead of returning them.
-///
-/// Uses offset-based attachment by resolving symbols from .symtab.
-/// Fails if the symbol is not found.
+/// The libbpf file offset for `symbol`, or `None` when it has no address in a
+/// file-backed section (absolute, `SHT_NOBITS`, ...).
+fn symbol_file_offset<'a>(
+    file: &object::File,
+    symbol: &impl object::ObjectSymbol<'a>,
+) -> Option<usize> {
+    use object::{Object, ObjectSection};
+
+    let address = symbol.address();
+    if address == 0 {
+        return None;
+    }
+
+    let section = file.section_by_index(symbol.section_index()?).ok()?;
+    let (sh_offset, _) = section.file_range()?;
+    Some((address - section.address() + sh_offset) as usize)
+}
+
+/// Attach targets resolved from a library's symbol tables.
+pub struct ResolvedSymbols {
+    offsets: HashMap<String, usize>,
+}
+
+impl ResolvedSymbols {
+    fn offset(&self, symbol: &str) -> Option<usize> {
+        self.offsets.get(symbol).copied()
+    }
+}
+
+/// Macro to attach a function with both entry and return probes at a resolved
+/// file offset. Also generates an `attach_*_if_found` variant that skips
+/// symbols absent from the offset table (returning whether it attached) and
+/// propagates attach failures.
 macro_rules! attach_uprobe_uretprobe {
     ($name:ident, $prog_entry:ident, $prog_return:ident) => {
-        fn $name(&mut self, lib_path: &Path, symbol: &str) -> Result<()> {
-            ensure_symbol_exists(lib_path, symbol)?;
-
-            // Attach entry probe at function entry via func_name
-            let link = self
-                .skel
-                .progs
-                .$prog_entry
-                .attach_uprobe_with_opts(
-                    -1,
-                    lib_path,
-                    0,
-                    UprobeOpts {
-                        retprobe: false,
-                        func_name: Some(symbol.to_owned()),
-                        ..Default::default()
-                    },
-                )
-                .context(format!(
-                    "Failed to attach {} uprobe in {}",
-                    symbol,
-                    lib_path.display()
-                ))?;
-            self.probes.push(link);
-
-            // Attach return probe at function entry via func_name
-            let link = self
-                .skel
-                .progs
-                .$prog_return
-                .attach_uprobe_with_opts(
-                    -1,
-                    lib_path,
-                    0,
-                    UprobeOpts {
-                        retprobe: true,
-                        func_name: Some(symbol.to_owned()),
-                        ..Default::default()
-                    },
-                )
-                .context(format!(
-                    "Failed to attach {} uretprobe in {}",
-                    symbol,
-                    lib_path.display()
-                ))?;
-            self.probes.push(link);
-
-            Ok(())
-        }
-
         paste! {
-            fn [<try_ $name>](&mut self, lib_path: &Path, symbol: &str) {
-                let result = self.$name(lib_path, symbol);
-                log::trace!("{} uprobe attach result: {:?}", symbol, result);
+            fn [<try_ $name>](&mut self, lib_path: &Path, offset: usize) -> Result<()> {
+                let link = self
+                    .skel
+                    .progs
+                    .$prog_entry
+                    .attach_uprobe_with_opts(
+                        -1,
+                        lib_path,
+                        offset,
+                        UprobeOpts {
+                            retprobe: false,
+                            ..Default::default()
+                        },
+                    )
+                    .context(format!(
+                        "Failed to attach uprobe at offset {:#x} in {}",
+                        offset,
+                        lib_path.display()
+                    ))?;
+                self.probes.push(link);
+
+                let link = self
+                    .skel
+                    .progs
+                    .$prog_return
+                    .attach_uprobe_with_opts(
+                        -1,
+                        lib_path,
+                        offset,
+                        UprobeOpts {
+                            retprobe: true,
+                            ..Default::default()
+                        },
+                    )
+                    .context(format!(
+                        "Failed to attach uretprobe at offset {:#x} in {}",
+                        offset,
+                        lib_path.display()
+                    ))?;
+                self.probes.push(link);
+
+                Ok(())
+            }
+
+            fn [<$name _if_found>](
+                &mut self,
+                lib_path: &Path,
+                symbol: &str,
+                symbols: &ResolvedSymbols,
+            ) -> Result<bool> {
+                let Some(offset) = symbols.offset(symbol) else {
+                    return Ok(false);
+                };
+                self.[<try_ $name>](lib_path, offset)
+                    .with_context(|| format!("Failed to attach {symbol}"))?;
+                log::trace!("Attached {} at {:#x}", symbol, offset);
+                Ok(true)
             }
         }
     };
 }
 
-/// Macro to attach a function with only an entry probe (no return probe).
-/// Also generates a `try_attach_*` variant that logs errors instead of returning them.
-///
-/// Uses offset-based attachment by resolving symbols from .symtab.
-/// Fails if the symbol is not found.
+/// Macro to attach a function with only an entry probe (no return probe) at a
+/// resolved file offset. Also generates an `attach_*_if_found` variant that
+/// skips symbols absent from the offset table (returning whether it attached)
+/// and propagates attach failures.
 macro_rules! attach_uprobe {
     ($name:ident, $prog:ident) => {
-        fn $name(&mut self, lib_path: &Path, symbol: &str) -> Result<()> {
-            ensure_symbol_exists(lib_path, symbol)?;
-
-            let link = self
-                .skel
-                .progs
-                .$prog
-                .attach_uprobe_with_opts(
-                    -1,
-                    lib_path,
-                    0,
-                    UprobeOpts {
-                        retprobe: false,
-                        func_name: Some(symbol.to_owned()),
-                        ..Default::default()
-                    },
-                )
-                .context(format!(
-                    "Failed to attach {} uprobe in {}",
-                    symbol,
-                    lib_path.display()
-                ))?;
-            self.probes.push(link);
-            Ok(())
-        }
-
         paste! {
-            fn [<try_ $name>](&mut self, lib_path: &Path, symbol: &str) {
-                let result = self.$name(lib_path, symbol);
-                log::trace!("{} uprobe attach result: {:?}", symbol, result);
+            fn [<try_ $name>](&mut self, lib_path: &Path, offset: usize) -> Result<()> {
+                let link = self
+                    .skel
+                    .progs
+                    .$prog
+                    .attach_uprobe_with_opts(
+                        -1,
+                        lib_path,
+                        offset,
+                        UprobeOpts {
+                            retprobe: false,
+                            ..Default::default()
+                        },
+                    )
+                    .context(format!(
+                        "Failed to attach uprobe at offset {:#x} in {}",
+                        offset,
+                        lib_path.display()
+                    ))?;
+                self.probes.push(link);
+                Ok(())
+            }
+
+            fn [<$name _if_found>](
+                &mut self,
+                lib_path: &Path,
+                symbol: &str,
+                symbols: &ResolvedSymbols,
+            ) -> Result<bool> {
+                let Some(offset) = symbols.offset(symbol) else {
+                    return Ok(false);
+                };
+                self.[<try_ $name>](lib_path, offset)
+                    .with_context(|| format!("Failed to attach {symbol}"))?;
+                log::trace!("Attached {} at {:#x}", symbol, offset);
+                Ok(true)
             }
         }
     };
@@ -280,10 +315,37 @@ impl MemtrackBpf {
     // Attach methods grouped by allocator
     // =========================================================================
 
+    /// Attach probes for every discovered allocator library.
+    pub fn attach_allocators(&mut self, libs: &[AllocatorLib]) -> Result<()> {
+        for lib in libs {
+            let offsets = resolve_symbol_offsets(&lib.path)?;
+            let before = self.probes.len();
+            self.attach_allocator_probes_with_offsets(lib.kind, &lib.path, &offsets)?;
+            debug!(
+                "Attached {} links to {} ({} resolved symbols)",
+                self.probes.len() - before,
+                lib.path.display(),
+                offsets.offsets.len()
+            );
+        }
+
+        Ok(())
+    }
+
     /// Attach probes for a specific allocator kind.
     /// This attaches both standard probes (if the allocator exports them) and
     /// allocator-specific prefixed probes.
     pub fn attach_allocator_probes(&mut self, kind: AllocatorKind, lib_path: &Path) -> Result<()> {
+        let offsets = resolve_symbol_offsets(lib_path)?;
+        self.attach_allocator_probes_with_offsets(kind, lib_path, &offsets)
+    }
+
+    fn attach_allocator_probes_with_offsets(
+        &mut self,
+        kind: AllocatorKind,
+        lib_path: &Path,
+        offsets: &ResolvedSymbols,
+    ) -> Result<()> {
         debug!(
             "Attaching {} probes to: {}",
             kind.name(),
@@ -292,31 +354,48 @@ impl MemtrackBpf {
 
         match kind {
             AllocatorKind::Libc => {
-                // Libc only has standard probes, and they must succeed
-                self.attach_libc_probes(lib_path)
+                // Libc only has standard probes, and they must succeed: a libc
+                // with an uninstrumented core entry point would silently
+                // produce an incomplete trace.
+                for symbol in ["malloc", "calloc", "realloc", "free"] {
+                    ensure!(
+                        offsets.offset(symbol).is_some(),
+                        "Required allocator symbol {symbol} has no resolvable file offset in {}",
+                        lib_path.display()
+                    );
+                }
+                self.attach_libc_probes(lib_path, offsets)
             }
             AllocatorKind::LibCpp => {
                 // libc++ exports C++ operator new/delete symbols
-                self.attach_libcpp_probes(lib_path)
+                self.attach_libcpp_probes(lib_path, offsets)
             }
             AllocatorKind::Jemalloc => {
                 // Jemalloc exposes libc/libcpp compatible allocator functions:
-                let _ = self.attach_libc_probes(lib_path);
-                let _ = self.attach_libcpp_probes(lib_path);
-                self.attach_jemalloc_probes(lib_path)
+                self.attach_compat_probes(lib_path, offsets);
+                self.attach_jemalloc_probes(lib_path, offsets)
             }
             AllocatorKind::Mimalloc => {
                 // Mimalloc exposes libc/libcpp compatible allocator functions:
-                let _ = self.attach_libc_probes(lib_path);
-                let _ = self.attach_libcpp_probes(lib_path);
-                self.attach_mimalloc_probes(lib_path)
+                self.attach_compat_probes(lib_path, offsets);
+                self.attach_mimalloc_probes(lib_path, offsets)
             }
             AllocatorKind::Tcmalloc => {
                 // Tcmalloc exposes libc/libcpp compatible allocator functions:
-                let _ = self.attach_libc_probes(lib_path);
-                let _ = self.attach_libcpp_probes(lib_path);
-                self.attach_tcmalloc_probes(lib_path)
+                self.attach_compat_probes(lib_path, offsets);
+                self.attach_tcmalloc_probes(lib_path, offsets)
             }
+        }
+    }
+
+    /// Best-effort attach of the libc/libcpp compatible symbols that
+    /// non-libc allocators may also export.
+    fn attach_compat_probes(&mut self, lib_path: &Path, offsets: &ResolvedSymbols) {
+        if let Err(e) = self.attach_libc_probes(lib_path, offsets) {
+            warn!("libc-compatible probes for {}: {e:#}", lib_path.display());
+        }
+        if let Err(e) = self.attach_libcpp_probes(lib_path, offsets) {
+            warn!("libcpp-compatible probes for {}: {e:#}", lib_path.display());
         }
     }
 
@@ -325,6 +404,7 @@ impl MemtrackBpf {
         lib_path: &Path,
         prefixes: &[&str],
         suffixes: &[&str],
+        offsets: &ResolvedSymbols,
     ) -> Result<()> {
         // Always include "" to capture the basic case
         let prefixes_with_base: Vec<&str> = std::iter::once("")
@@ -339,18 +419,46 @@ impl MemtrackBpf {
 
         for prefix in &prefixes_with_base {
             for suffix in &suffixes_with_base {
-                self.try_attach_malloc(lib_path, &format!("{prefix}malloc{suffix}"));
-                self.try_attach_malloc(lib_path, &format!("{prefix}valloc{suffix}"));
-                self.try_attach_malloc(lib_path, &format!("{prefix}pvalloc{suffix}"));
-                self.try_attach_calloc(lib_path, &format!("{prefix}calloc{suffix}"));
-                self.try_attach_realloc(lib_path, &format!("{prefix}realloc{suffix}"));
-                self.try_attach_aligned_alloc(lib_path, &format!("{prefix}aligned_alloc{suffix}"));
-                self.try_attach_memalign(lib_path, &format!("{prefix}memalign{suffix}"));
-                self.try_attach_memalign(lib_path, &format!("{prefix}posix_memalign{suffix}"));
-                self.try_attach_free(lib_path, &format!("{prefix}free{suffix}"));
-                self.try_attach_free(lib_path, &format!("{prefix}free_sized{suffix}"));
-                self.try_attach_free(lib_path, &format!("{prefix}free_aligned_sized{suffix}"));
-                self.try_attach_free(lib_path, &format!("{prefix}cfree{suffix}"));
+                self.attach_malloc_if_found(lib_path, &format!("{prefix}malloc{suffix}"), offsets)?;
+                self.attach_malloc_if_found(lib_path, &format!("{prefix}valloc{suffix}"), offsets)?;
+                self.attach_malloc_if_found(
+                    lib_path,
+                    &format!("{prefix}pvalloc{suffix}"),
+                    offsets,
+                )?;
+                self.attach_calloc_if_found(lib_path, &format!("{prefix}calloc{suffix}"), offsets)?;
+                self.attach_realloc_if_found(
+                    lib_path,
+                    &format!("{prefix}realloc{suffix}"),
+                    offsets,
+                )?;
+                self.attach_aligned_alloc_if_found(
+                    lib_path,
+                    &format!("{prefix}aligned_alloc{suffix}"),
+                    offsets,
+                )?;
+                self.attach_memalign_if_found(
+                    lib_path,
+                    &format!("{prefix}memalign{suffix}"),
+                    offsets,
+                )?;
+                self.attach_memalign_if_found(
+                    lib_path,
+                    &format!("{prefix}posix_memalign{suffix}"),
+                    offsets,
+                )?;
+                self.attach_free_if_found(lib_path, &format!("{prefix}free{suffix}"), offsets)?;
+                self.attach_free_if_found(
+                    lib_path,
+                    &format!("{prefix}free_sized{suffix}"),
+                    offsets,
+                )?;
+                self.attach_free_if_found(
+                    lib_path,
+                    &format!("{prefix}free_aligned_sized{suffix}"),
+                    offsets,
+                )?;
+                self.attach_free_if_found(lib_path, &format!("{prefix}cfree{suffix}"), offsets)?;
             }
         }
 
@@ -360,32 +468,32 @@ impl MemtrackBpf {
     /// Attach standard library allocation probes (libc-style: malloc, free, calloc, etc.)
     /// This works for libc and allocators that export standard symbol names.
     /// For non-libc allocators, standard names are optional - just try them silently.
-    fn attach_libc_probes(&mut self, lib_path: &Path) -> Result<()> {
-        self.attach_standard_probes(lib_path, &[], &[])
+    fn attach_libc_probes(&mut self, lib_path: &Path, offsets: &ResolvedSymbols) -> Result<()> {
+        self.attach_standard_probes(lib_path, &[], &[], offsets)
     }
 
     /// Attach C++ operator new/delete probes.
     /// These are mangled C++ symbols that wrap the underlying allocator.
     /// C++ operators have identical signatures to malloc/free, so we reuse those handlers.
-    fn attach_libcpp_probes(&mut self, lib_path: &Path) -> Result<()> {
-        self.try_attach_malloc(lib_path, "_Znwm"); // operator new(size_t)
-        self.try_attach_malloc(lib_path, "_Znam"); // operator new[](size_t)
-        self.try_attach_malloc(lib_path, "_ZnwmSt11align_val_t"); // operator new(size_t, std::align_val_t)
-        self.try_attach_malloc(lib_path, "_ZnamSt11align_val_t"); // operator new[](size_t, std::align_val_t)
-        self.try_attach_free(lib_path, "_ZdlPv"); // operator delete(void*)
-        self.try_attach_free(lib_path, "_ZdaPv"); // operator delete[](void*)
-        self.try_attach_free(lib_path, "_ZdlPvm"); // operator delete(void*, size_t) - C++14 sized delete
-        self.try_attach_free(lib_path, "_ZdaPvm"); // operator delete[](void*, size_t) - C++14 sized delete
-        self.try_attach_free(lib_path, "_ZdlPvSt11align_val_t"); // operator delete(void*, std::align_val_t)
-        self.try_attach_free(lib_path, "_ZdaPvSt11align_val_t"); // operator delete[](void*, std::align_val_t)
-        self.try_attach_free(lib_path, "_ZdlPvmSt11align_val_t"); // operator delete(void*, size_t, std::align_val_t)
-        self.try_attach_free(lib_path, "_ZdaPvmSt11align_val_t"); // operator delete[](void*, size_t, std::align_val_t)
+    fn attach_libcpp_probes(&mut self, lib_path: &Path, offsets: &ResolvedSymbols) -> Result<()> {
+        self.attach_malloc_if_found(lib_path, "_Znwm", offsets)?; // operator new(size_t)
+        self.attach_malloc_if_found(lib_path, "_Znam", offsets)?; // operator new[](size_t)
+        self.attach_malloc_if_found(lib_path, "_ZnwmSt11align_val_t", offsets)?; // operator new(size_t, std::align_val_t)
+        self.attach_malloc_if_found(lib_path, "_ZnamSt11align_val_t", offsets)?; // operator new[](size_t, std::align_val_t)
+        self.attach_free_if_found(lib_path, "_ZdlPv", offsets)?; // operator delete(void*)
+        self.attach_free_if_found(lib_path, "_ZdaPv", offsets)?; // operator delete[](void*)
+        self.attach_free_if_found(lib_path, "_ZdlPvm", offsets)?; // operator delete(void*, size_t) - C++14 sized delete
+        self.attach_free_if_found(lib_path, "_ZdaPvm", offsets)?; // operator delete[](void*, size_t) - C++14 sized delete
+        self.attach_free_if_found(lib_path, "_ZdlPvSt11align_val_t", offsets)?; // operator delete(void*, std::align_val_t)
+        self.attach_free_if_found(lib_path, "_ZdaPvSt11align_val_t", offsets)?; // operator delete[](void*, std::align_val_t)
+        self.attach_free_if_found(lib_path, "_ZdlPvmSt11align_val_t", offsets)?; // operator delete(void*, size_t, std::align_val_t)
+        self.attach_free_if_found(lib_path, "_ZdaPvmSt11align_val_t", offsets)?; // operator delete[](void*, size_t, std::align_val_t)
 
         Ok(())
     }
 
     /// Attach jemalloc-specific probes (prefixed and extended API).
-    fn attach_jemalloc_probes(&mut self, lib_path: &Path) -> Result<()> {
+    fn attach_jemalloc_probes(&mut self, lib_path: &Path, offsets: &ResolvedSymbols) -> Result<()> {
         // The following functions are used in Rust when setting a global allocator:
         // - rust_alloc: _rjem_malloc and _rjem_mallocx
         // - rust_alloc_zeroed: _rjem_mallocx / _rjem_calloc
@@ -397,16 +505,24 @@ impl MemtrackBpf {
         let prefixes = ["je_", "_rjem_"];
         let suffixes = ["", "_default"];
 
-        self.attach_standard_probes(lib_path, &prefixes, &suffixes)?;
+        self.attach_standard_probes(lib_path, &prefixes, &suffixes, offsets)?;
 
         // Non-standard API that has an additional flag parameter
         // See: https://jemalloc.net/jemalloc.3.html
         for prefix in prefixes {
             for suffix in suffixes {
-                self.try_attach_malloc(lib_path, &format!("{prefix}mallocx{suffix}"));
-                self.try_attach_realloc(lib_path, &format!("{prefix}rallocx{suffix}"));
-                self.try_attach_free(lib_path, &format!("{prefix}dallocx{suffix}"));
-                self.try_attach_free(lib_path, &format!("{prefix}sdallocx{suffix}"));
+                self.attach_malloc_if_found(
+                    lib_path,
+                    &format!("{prefix}mallocx{suffix}"),
+                    offsets,
+                )?;
+                self.attach_realloc_if_found(
+                    lib_path,
+                    &format!("{prefix}rallocx{suffix}"),
+                    offsets,
+                )?;
+                self.attach_free_if_found(lib_path, &format!("{prefix}dallocx{suffix}"), offsets)?;
+                self.attach_free_if_found(lib_path, &format!("{prefix}sdallocx{suffix}"), offsets)?;
             }
         }
 
@@ -414,20 +530,20 @@ impl MemtrackBpf {
     }
 
     /// Attach mimalloc-specific probes (mi_* API).
-    fn attach_mimalloc_probes(&mut self, lib_path: &Path) -> Result<()> {
+    fn attach_mimalloc_probes(&mut self, lib_path: &Path, offsets: &ResolvedSymbols) -> Result<()> {
         // The following functions are used in Rust when setting a global allocator:
         // - mi_malloc_aligned
         // - mi_free
         // - mi_realloc_aligned
         // - mi_zalloc_aligned
 
-        self.attach_standard_probes(lib_path, &["mi_"], &[])?;
+        self.attach_standard_probes(lib_path, &["mi_"], &[], offsets)?;
 
         // Zero-initialized and aligned variants
-        self.try_attach_malloc(lib_path, "mi_malloc_aligned");
-        self.try_attach_calloc(lib_path, "mi_zalloc");
-        self.try_attach_calloc(lib_path, "mi_zalloc_aligned");
-        self.try_attach_realloc(lib_path, "mi_realloc_aligned");
+        self.attach_malloc_if_found(lib_path, "mi_malloc_aligned", offsets)?;
+        self.attach_calloc_if_found(lib_path, "mi_zalloc", offsets)?;
+        self.attach_calloc_if_found(lib_path, "mi_zalloc_aligned", offsets)?;
+        self.attach_realloc_if_found(lib_path, "mi_realloc_aligned", offsets)?;
 
         Ok(())
     }
@@ -437,12 +553,12 @@ impl MemtrackBpf {
     /// See:
     /// - https://github.com/google/tcmalloc/blob/master/docs/reference.md
     /// - https://github.com/gperftools/gperftools/blob/a47243150ec41097602730ff8779fafcc172d1fb/src/tcmalloc.cc#L178-L190
-    fn attach_tcmalloc_probes(&mut self, lib_path: &Path) -> Result<()> {
-        self.attach_standard_probes(lib_path, &["tc_"], &[])?;
+    fn attach_tcmalloc_probes(&mut self, lib_path: &Path, offsets: &ResolvedSymbols) -> Result<()> {
+        self.attach_standard_probes(lib_path, &["tc_"], &[], offsets)?;
 
-        self.try_attach_free(lib_path, "free_sized");
-        self.try_attach_free(lib_path, "free_aligned_sized");
-        self.try_attach_free(lib_path, "sdallocx");
+        self.attach_free_if_found(lib_path, "free_sized", offsets)?;
+        self.attach_free_if_found(lib_path, "free_aligned_sized", offsets)?;
+        self.attach_free_if_found(lib_path, "sdallocx", offsets)?;
 
         Ok(())
     }
@@ -471,6 +587,33 @@ impl Drop for MemtrackBpf {
         if self.probes.len() > 10 {
             warn!(
                 "Dropping the MemtrackBpf instance, this can take some time when having many probes attached"
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Allocator entry points must resolve to file offsets; a symbol that
+    /// silently fails to resolve attaches nothing and loses all events.
+    #[test]
+    fn libc_allocator_symbols_resolve_to_offsets() {
+        let maps = std::fs::read_to_string("/proc/self/maps").unwrap();
+        let libc_path = maps
+            .lines()
+            .find_map(|line| {
+                let path = line.split_whitespace().last()?;
+                path.contains("libc.so.6").then(|| path.to_owned())
+            })
+            .expect("test process has no mapped libc.so.6");
+
+        let symbols = resolve_symbol_offsets(Path::new(&libc_path)).unwrap();
+        for symbol in ["malloc", "calloc", "realloc", "free"] {
+            assert!(
+                symbols.offset(symbol).is_some(),
+                "{symbol} in {libc_path} did not resolve to a file offset"
             );
         }
     }
