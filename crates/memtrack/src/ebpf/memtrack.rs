@@ -317,8 +317,14 @@ impl MemtrackBpf {
 
     /// Attach probes for every discovered allocator library.
     pub fn attach_allocators(&mut self, libs: &[AllocatorLib]) -> Result<()> {
-        for lib in libs {
-            let offsets = resolve_symbol_offsets(&lib.path)?;
+        use rayon::prelude::*;
+
+        let resolved = libs
+            .par_iter()
+            .map(|lib| resolve_symbol_offsets(&lib.path).map(|offsets| (lib, offsets)))
+            .collect::<Result<Vec<_>>>()?;
+
+        for (lib, offsets) in resolved {
             let before = self.probes.len();
             self.attach_allocator_probes_with_offsets(lib.kind, &lib.path, &offsets)?;
             debug!(

@@ -2389,6 +2389,7 @@ dependencies = [
  "log",
  "object",
  "paste",
+ "rayon",
  "rstest",
  "runner-shared",
  "serde",
