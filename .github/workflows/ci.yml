@@ -37,8 +37,7 @@ jobs:
       - uses: ./.github/actions/install-rust
 
       # Install memtrack for the memory integration tests
-      - name: Install dependencies required for libbpf-sys (vendored feature)
-        run: sudo apt-get update && sudo apt-get install -y autopoint bison flex
+      - uses: ./.github/actions/install-bpf-deps
       - name: Install memtrack
         run: |
           cargo install --path crates/memtrack --locked
@@ -105,8 +104,7 @@ jobs:
       - uses: ./.github/actions/install-rust
         with:
           cache-key: ${{ matrix.test }}
-      - name: Install dependencies required for libbpf-sys (vendored feature)
-        run: sudo apt-get update && sudo apt-get install -y autopoint bison flex
+      - uses: ./.github/actions/install-bpf-deps
 
       - name: Install additional allocators
         run: sudo apt-get install -y libmimalloc-dev libjemalloc-dev
