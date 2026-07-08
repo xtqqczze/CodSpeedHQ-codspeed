@@ -98,15 +98,39 @@ impl MemtrackBpf {
         })
     }
 
-    /// Start polling, forwarding each event over the returned channel.
-    pub fn start_polling_with_channel(
+    /// Poll the allocation-event ring buffer into `tx`. The returned poller
+    /// keeps the pipeline alive; events stop flowing when it is dropped.
+    pub fn poll_events_with_channel(
         &self,
-        poll_timeout_ms: u64,
-    ) -> Result<(
-        RingBufferPoller,
-        crossbeam_channel::Receiver<runner_shared::artifacts::MemtrackEvent>,
-    )> {
-        RingBufferPoller::with_channel(&self.skel.maps.events, poll_timeout_ms)
+        poll_interval_ms: u64,
+        tx: std::sync::mpsc::Sender<runner_shared::artifacts::MemtrackEvent>,
+    ) -> Result<RingBufferPoller> {
+        RingBufferPoller::new(
+            &self.skel.maps.events,
+            crate::ebpf::events::parse_event,
+            tx,
+            poll_interval_ms,
+        )
+    }
+
+    /// Poll the exec-mapping request ring buffer into `tx`. Same contract as
+    /// [`Self::poll_events_with_channel`].
+    pub(crate) fn poll_attach_with_channel(
+        &self,
+        poll_interval_ms: u64,
+        tx: std::sync::mpsc::Sender<crate::ebpf::events::AttachRequest>,
+    ) -> Result<RingBufferPoller> {
+        RingBufferPoller::new(
+            &self.skel.maps.attach_requests,
+            crate::ebpf::events::AttachRequest::parse,
+            tx,
+            poll_interval_ms,
+        )
+    }
+
+    /// Number of currently-attached probes/links.
+    pub fn probe_count(&self) -> usize {
+        self.probes.len()
     }
 
     /// Detach all BPF links in parallel. Closing a uprobe link blocks on two
