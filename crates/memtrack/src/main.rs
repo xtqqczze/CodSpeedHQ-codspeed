@@ -189,6 +189,16 @@ fn track_command(
     let status = child.wait().context("Failed to wait for command")?;
     debug!("Command exited with status: {status}");
 
+    // Stop event production before draining: the child has exited, so anything
+    // still arriving is already in the ring buffer.
+    let disable_result = tracker_arc
+        .lock()
+        .map_err(|_| anyhow!("tracker mutex poisoned"))?
+        .disable();
+    if let Err(e) = disable_result {
+        warn!("Failed to disable tracking: {e:#}");
+    }
+
     // Wait for drain thread to finish
     debug!("Waiting for the drain thread to finish");
     DRAIN_EVENTS.store(false, Ordering::Relaxed);
@@ -202,6 +212,14 @@ fn track_command(
     writer_thread
         .join()
         .map_err(|_| anyhow::anyhow!("Failed to join writer thread"))??;
+
+    // Detach probes explicitly: the IPC thread still holds an Arc clone, so the
+    // tracker would otherwise never be dropped before process::exit and the
+    // kernel would close every link fd serially during exit.
+    tracker_arc
+        .lock()
+        .map_err(|_| anyhow!("tracker mutex poisoned"))?
+        .detach();
 
     // Read the eBPF dropped-event counter after the run is complete.
     // A non-zero value means the ring buffer overflowed and the trace is

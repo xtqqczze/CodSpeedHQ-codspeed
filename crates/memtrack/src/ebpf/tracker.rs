@@ -100,6 +100,13 @@ impl Tracker {
         self.bpf.disable_tracking()
     }
 
+    /// Detach all attached probes. Called explicitly at teardown because the
+    /// process may exit without ever dropping the tracker, in which case the
+    /// kernel would close each link fd serially at exit.
+    pub fn detach(&mut self) {
+        self.bpf.detach_probes();
+    }
+
     /// Number of events the kernel dropped because the ring buffer was full.
     /// A non-zero value means the resulting trace is incomplete.
     pub fn dropped_events_count(&self) -> anyhow::Result<u64> {

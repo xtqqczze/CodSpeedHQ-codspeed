@@ -588,13 +588,35 @@ impl MemtrackBpf {
     }
 }
 
+impl MemtrackBpf {
+    /// Detach all BPF links in parallel. Closing a uprobe link blocks on two
+    /// RCU grace periods in the kernel, but concurrent waiters share grace
+    /// periods, so closing from many threads scales near-linearly.
+    pub fn detach_probes(&mut self) {
+        const DETACH_THREADS: usize = 32;
+
+        let mut probes = std::mem::take(&mut self.probes);
+        if probes.is_empty() {
+            return;
+        }
+
+        debug!("Detaching {} BPF links", probes.len());
+        let start = std::time::Instant::now();
+        let chunk_size = probes.len().div_ceil(DETACH_THREADS);
+        std::thread::scope(|scope| {
+            while !probes.is_empty() {
+                let split_at = probes.len().saturating_sub(chunk_size);
+                let chunk = probes.split_off(split_at);
+                scope.spawn(move || drop(chunk));
+            }
+        });
+        debug!("Detached BPF links in {:?}", start.elapsed());
+    }
+}
+
 impl Drop for MemtrackBpf {
     fn drop(&mut self) {
-        if self.probes.len() > 10 {
-            warn!(
-                "Dropping the MemtrackBpf instance, this can take some time when having many probes attached"
-            );
-        }
+        self.detach_probes();
     }
 }
 
