@@ -22,9 +22,9 @@ pub struct ExperimentalArgs {
         long,
         default_value_t = false,
         help_heading = "Experimental",
-        env = "CODSPEED_CYCLE_ESTIMATION"
+        env = "CODSPEED_EXPERIMENTAL_CYCLE_ESTIMATION"
     )]
-    pub cycle_estimation: bool,
+    pub experimental_cycle_estimation: bool,
 
     /// Exclude memory allocation time from simulation results.
     #[arg(
@@ -43,8 +43,8 @@ impl ExperimentalArgs {
         if self.experimental_fair_sched {
             flags.push("--experimental-fair-sched");
         }
-        if self.cycle_estimation {
-            flags.push("--cycle-estimation");
+        if self.experimental_cycle_estimation {
+            flags.push("--experimental-cycle-estimation");
         }
         if self.experimental_exclude_allocations {
             flags.push("--experimental-exclude-allocations");
