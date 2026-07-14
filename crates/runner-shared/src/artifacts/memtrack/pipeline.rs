@@ -1,6 +1,5 @@
 use std::io::{BufWriter, Write};
 
-use itertools::Itertools;
 use rayon::prelude::*;
 
 use super::MemtrackEvent;
@@ -38,8 +37,15 @@ where
     let mut total = 0u64;
     let mut wrote_any = false;
 
-    for window in &events.into_iter().chunks(FRAME_EVENTS * WINDOW_FRAMES) {
-        let window: Vec<MemtrackEvent> = window.collect();
+    let cap = FRAME_EVENTS * WINDOW_FRAMES;
+    let mut events = events.into_iter();
+    let mut window: Vec<MemtrackEvent> = Vec::with_capacity(cap);
+    loop {
+        window.clear();
+        window.extend(events.by_ref().take(cap));
+        if window.is_empty() {
+            break;
+        }
         total += window.len() as u64;
 
         let frames: Vec<Vec<u8>> = pool.install(|| {
