@@ -12,7 +12,7 @@ impl<W: Write> MemtrackWriter<BufWriter<zstd::Encoder<'static, W>>> {
     pub fn new(writer: W) -> anyhow::Result<Self> {
         // We're dealing with a lot of events, so we want to compress as much as possible
         // while not taking too much time to compress.
-        const COMPRESSION_LEVEL: i32 = 1;
+        const COMPRESSION_LEVEL: i32 = -5;
         const BUFFER_SIZE: usize = 256 * 1024 /* 256 KB */;
 
         let encoder = zstd::Encoder::new(writer, COMPRESSION_LEVEL)?;
