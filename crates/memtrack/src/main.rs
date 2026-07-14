@@ -2,15 +2,12 @@ use clap::Parser;
 use ipc_channel::ipc;
 use memtrack::prelude::*;
 use memtrack::{MemtrackIpcMessage, Tracker, handle_ipc_message};
-use runner_shared::artifacts::{ArtifactExt, MemtrackArtifact, MemtrackEvent, MemtrackWriter};
+use runner_shared::artifacts::{ArtifactExt, MemtrackArtifact, encode_events};
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
 
 #[derive(Parser)]
 #[command(name = "memtrack")]
@@ -129,61 +126,11 @@ fn track_command(
     let file_name = MemtrackArtifact::file_name(Some(root_pid));
     let out_file = std::fs::File::create(out_dir.join(file_name))?;
 
-    let (write_tx, write_rx) = channel::<MemtrackEvent>();
+    let n_workers = thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4);
 
-    // Stage A: Fast drain thread - This is required so that we immediately clear the ring buffer
-    // because it only has a limited size.
-    static DRAIN_EVENTS: AtomicBool = AtomicBool::new(true);
-    let write_tx_clone = write_tx.clone();
-    let drain_thread = thread::spawn(move || {
-        // Regular draining loop
-        while DRAIN_EVENTS.load(Ordering::Relaxed) {
-            let Ok(event) = event_rx.recv_timeout(Duration::from_millis(100)) else {
-                continue;
-            };
-            let _ = write_tx_clone.send(event);
-        }
-
-        // Final aggressive drain - keep trying until truly empty
-        loop {
-            match event_rx.try_recv() {
-                Ok(event) => {
-                    let _ = write_tx_clone.send(event);
-                }
-                Err(_) => {
-                    // Sleep briefly and try once more to catch late arrivals
-                    thread::sleep(Duration::from_millis(50));
-                    if let Ok(event) = event_rx.try_recv() {
-                        let _ = write_tx_clone.send(event);
-                    } else {
-                        break;
-                    }
-                }
-            }
-        }
-    });
-
-    // Stage B: Writer thread - Immediately writes the events to disk
-    let writer_thread = thread::spawn(move || -> anyhow::Result<()> {
-        let mut writer = MemtrackWriter::new(out_file)?;
-
-        let mut i = 0;
-        while let Ok(first) = write_rx.recv() {
-            writer.write_event(&first)?;
-            i += 1;
-
-            // Drain any backlog in a tight loop (batching)
-            while let Ok(ev) = write_rx.try_recv() {
-                writer.write_event(&ev)?;
-                i += 1;
-            }
-        }
-        writer.finish()?;
-
-        info!("Wrote {i} memtrack events to disk");
-
-        Ok(())
-    });
+    let pipeline_thread = thread::spawn(move || encode_events(event_rx, out_file, n_workers));
 
     // Wait for the command to complete
     let status = child.wait().context("Failed to wait for command")?;
@@ -199,19 +146,20 @@ fn track_command(
         warn!("Failed to disable tracking: {e:#}");
     }
 
-    // Wait for drain thread to finish
-    debug!("Waiting for the drain thread to finish");
-    DRAIN_EVENTS.store(false, Ordering::Relaxed);
-    drain_thread
-        .join()
-        .map_err(|_| anyhow::anyhow!("Failed to join drain thread"))?;
+    // Stopping the poller closes the event channel; without this the pipeline
+    // join below would block forever.
+    debug!("Stopping the ring buffer poller");
+    tracker_arc
+        .lock()
+        .map_err(|_| anyhow!("tracker mutex poisoned"))?
+        .stop_polling();
 
-    // Wait for writer thread to finish and propagate errors
-    debug!("Waiting for the writer thread to finish");
-    drop(write_tx);
-    writer_thread
+    debug!("Waiting for the encode pipeline to finish");
+    let total = pipeline_thread
         .join()
-        .map_err(|_| anyhow::anyhow!("Failed to join writer thread"))??;
+        .map_err(|_| anyhow::anyhow!("Failed to join memtrack encode pipeline"))??;
+
+    info!("Wrote {total} memtrack events to disk");
 
     // Detach probes explicitly: the IPC thread still holds an Arc clone, so the
     // tracker would otherwise never be dropped before process::exit and the
