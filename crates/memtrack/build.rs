@@ -17,7 +17,7 @@ fn build_ebpf() {
         .expect("CARGO_CFG_TARGET_ARCH must be set in build script");
     let memtrack_out = PathBuf::from(env::var("OUT_DIR").unwrap()).join("memtrack.skel.rs");
     SkeletonBuilder::new()
-        .source("src/ebpf/c/memtrack.bpf.c")
+        .source("src/ebpf/c/main.bpf.c")
         .clang_args([
             "-I",
             &vmlinux::include_path_root().join(arch).to_string_lossy(),
