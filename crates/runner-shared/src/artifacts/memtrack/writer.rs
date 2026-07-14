@@ -22,15 +22,13 @@ impl<W: Write> MemtrackWriter<BufWriter<zstd::Encoder<'static, W>>> {
         })
     }
 
-    /// Finish writing and flush the compression stream
-    pub fn finish(self) -> anyhow::Result<()> {
-        let encoder = self.serializer.into_inner();
+    /// Finish writing, flush the compression stream, and return the sink
+    pub fn finish(self) -> anyhow::Result<W> {
+        let buffered = self.serializer.into_inner();
+        let encoder = buffered.into_inner().map_err(|e| e.into_error())?;
         let mut writer = encoder.finish()?;
-
-        // Flush the writer to ensure all data is written to the underlying writer
         writer.flush()?;
-
-        Ok(())
+        Ok(writer)
     }
 }
 
