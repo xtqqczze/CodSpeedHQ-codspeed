@@ -15,10 +15,10 @@ impl<W: Write> MemtrackWriter<BufWriter<zstd::Encoder<'static, W>>> {
         const COMPRESSION_LEVEL: i32 = 1;
         const BUFFER_SIZE: usize = 256 * 1024 /* 256 KB */;
 
-        let writer = BufWriter::with_capacity(BUFFER_SIZE, writer);
         let encoder = zstd::Encoder::new(writer, COMPRESSION_LEVEL)?;
+        let writer = BufWriter::with_capacity(BUFFER_SIZE, encoder);
         Ok(Self {
-            serializer: rmp_serde::Serializer::new(encoder),
+            serializer: rmp_serde::Serializer::new(writer),
         })
     }
 
