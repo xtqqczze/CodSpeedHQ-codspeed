@@ -575,13 +575,13 @@ impl MemtrackBpf {
         Ok(())
     }
 
-    /// Start polling with an mpsc channel for events
+    /// Start polling, forwarding each event over the returned channel.
     pub fn start_polling_with_channel(
         &self,
         poll_timeout_ms: u64,
     ) -> Result<(
         RingBufferPoller,
-        std::sync::mpsc::Receiver<runner_shared::artifacts::MemtrackEvent>,
+        crossbeam_channel::Receiver<runner_shared::artifacts::MemtrackEvent>,
     )> {
         // Use the syscalls skeleton's ring buffer (both programs share the same one)
         RingBufferPoller::with_channel(&self.skel.maps.events, poll_timeout_ms)

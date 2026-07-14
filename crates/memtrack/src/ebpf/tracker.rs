@@ -1,10 +1,12 @@
+use crate::ebpf::poller::RingBufferPoller;
 use crate::prelude::*;
 use crate::{AllocatorLib, ebpf::MemtrackBpf};
+use crossbeam_channel::Receiver;
 use runner_shared::artifacts::MemtrackEvent as Event;
-use std::sync::mpsc::{self, Receiver};
 
 pub struct Tracker {
     bpf: MemtrackBpf,
+    poller: Option<RingBufferPoller>,
 }
 
 impl Tracker {
@@ -32,7 +34,7 @@ impl Tracker {
         let mut bpf = MemtrackBpf::new()?;
         bpf.attach_tracepoints()?;
 
-        Ok(Self { bpf })
+        Ok(Self { bpf, poller: None })
     }
 
     pub fn attach_allocators(&mut self, libs: &[AllocatorLib]) -> Result<()> {
@@ -43,32 +45,25 @@ impl Tracker {
         self.bpf.attach_allocator_probes(lib.kind, &lib.path)
     }
 
-    /// Start tracking allocations for a specific PID
+    /// Start tracking allocations for a specific PID.
     ///
-    /// Returns a receiver channel that will receive allocation events.
-    /// The receiver will continue to produce events until the tracker is dropped.
+    /// Returns a receiver of allocation events. The poller is owned by the tracker
+    /// and keeps running until [`Tracker::stop_polling`] is called or the tracker
+    /// is dropped.
     pub fn track(&mut self, pid: i32) -> Result<Receiver<Event>> {
-        // Add the PID to track
         self.bpf.add_tracked_pid(pid)?;
         debug!("Tracking PID {pid}");
 
-        // Start polling with channel
-        let (_poller, event_rx) = self.bpf.start_polling_with_channel(10)?;
+        let (poller, event_rx) = self.bpf.start_polling_with_channel(10)?;
+        self.poller = Some(poller);
 
-        // Keep the poller alive by moving it into the channel
-        // When the receiver is dropped, the poller will also be dropped
-        let (tx, rx) = mpsc::channel();
-        std::thread::spawn(move || {
-            // Keep poller alive
-            let _p = _poller;
-            while let Ok(event) = event_rx.recv() {
-                if tx.send(event).is_err() {
-                    break;
-                }
-            }
-        });
+        Ok(event_rx)
+    }
 
-        Ok(rx)
+    /// Stop the poll thread, draining ring-buffer stragglers. This closes the
+    /// event channel returned by [`track`].
+    pub fn stop_polling(&mut self) {
+        self.poller.take();
     }
 
     /// Bump RLIMIT_MEMLOCK for kernels older than 5.11. Newer kernels account BPF

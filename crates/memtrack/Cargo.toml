@@ -21,6 +21,7 @@ ebpf = ["dep:libbpf-rs", "dep:libbpf-cargo", "dep:vmlinux"]
 [dependencies]
 anyhow = { workspace = true }
 clap = { workspace = true }
+crossbeam-channel = { workspace = true }
 libc = { workspace = true }
 log = { workspace = true }
 env_logger = { workspace = true }
