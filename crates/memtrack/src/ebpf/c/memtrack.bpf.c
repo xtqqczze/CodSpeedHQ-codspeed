@@ -94,6 +94,18 @@ int tracepoint_sched_fork(struct trace_event_raw_sched_process_fork* ctx) {
 
 /* == Helper functions for the allocation tracking == */
 
+/* Wake the consumer only once this much unconsumed data has accumulated.
+ * Per-event wakeups dominate submission cost at high event rates; batching
+ * them behind a data watermark amortizes the wakeup to ~1 per thousand
+ * events. The userspace poller's poll timeout flushes the tail that never
+ * reaches the watermark. */
+#define WAKEUP_DATA_SIZE (64 * 1024)
+
+static __always_inline long wake_flags(void) {
+    long avail = bpf_ringbuf_query(&events, BPF_RB_AVAIL_DATA);
+    return avail >= WAKEUP_DATA_SIZE ? BPF_RB_FORCE_WAKEUP : BPF_RB_NO_WAKEUP;
+}
+
 /* Helper to check if tracking is currently enabled */
 static __always_inline int is_enabled(void) {
     __u32 key = 0;
@@ -157,7 +169,7 @@ static __always_inline __u64* take_param(void* map) {
                                                                         \
         fill_data;                                                      \
                                                                         \
-        bpf_ringbuf_submit(e, 0);                                       \
+        bpf_ringbuf_submit(e, wake_flags());                            \
         return 0;                                                       \
     }
 
