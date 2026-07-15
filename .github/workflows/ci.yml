@@ -120,7 +120,11 @@ jobs:
         run: sudo chown -R $USER:$USER . ~/.cargo
 
   benchmarks:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.mode == 'walltime' && 'codspeed-macro' || 'ubuntu-latest' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [simulation, walltime]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -133,11 +137,11 @@ jobs:
           tool: cargo-codspeed
 
       - name: Build benchmarks
-        run: cargo codspeed build -p runner-shared
+        run: cargo codspeed build -p runner-shared -m ${{ matrix.mode }}
       - name: Run benchmarks
         uses: CodSpeedHQ/action@3194d9a39c4d46684cb44bf7207fc56626aad8fd # v4
         with:
-          mode: simulation
+          mode: ${{ matrix.mode }}
           run: cargo codspeed run -p runner-shared
 
   check:
