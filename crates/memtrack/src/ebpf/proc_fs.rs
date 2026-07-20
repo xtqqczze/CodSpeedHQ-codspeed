@@ -114,13 +114,26 @@ pub(super) fn resolve_mapping(pid: u32, dev: u64, ino: u64) -> Option<ResolvedMa
         }
 
         let display = fields.next().unwrap_or("<anonymous>").to_string();
+        let name = map_files_name(range)?;
         return Some(ResolvedMapping {
-            attach_path: PathBuf::from(format!("/proc/{pid}/map_files/{range}")),
+            attach_path: PathBuf::from(format!("/proc/{pid}/map_files/{name}")),
             display,
         });
     }
 
     None
+}
+
+/// Re-emit a `/proc/<pid>/maps` range column as a `map_files` dirent name.
+///
+/// The maps column is zero-padded to a minimum of 8 hex digits, but `map_files`
+/// dirents use the kernel's canonical no-leading-zero hex, so a low-address
+/// (e.g. non-PIE) mapping must be normalized or the resulting path will not exist.
+fn map_files_name(range: &str) -> Option<String> {
+    let (start, end) = range.split_once('-')?;
+    let start = u64::from_str_radix(start, 16).ok()?;
+    let end = u64::from_str_radix(end, 16).ok()?;
+    Some(format!("{start:x}-{end:x}"))
 }
 
 /// Parse a `MAJOR:MINOR` lowercase-hex dev column.
@@ -151,6 +164,22 @@ mod tests {
         assert_eq!(parse_dev("00:1a"), Some((0, 0x1a)));
         assert_eq!(parse_dev("nope"), None);
         assert_eq!(parse_dev("zz:01"), None);
+    }
+
+    #[test]
+    fn map_files_name_strips_leading_zeros() {
+        // The maps column zero-pads to >=8 hex digits; map_files dirents don't.
+        assert_eq!(
+            map_files_name("00400000-00452000").as_deref(),
+            Some("400000-452000")
+        );
+        assert_eq!(
+            map_files_name("7f0000000000-7f0000001000").as_deref(),
+            Some("7f0000000000-7f0000001000")
+        );
+        assert_eq!(map_files_name("1000"), None);
+        assert_eq!(map_files_name("zzzz-1000"), None);
+        assert_eq!(map_files_name("1000-zzzz"), None);
     }
 
     /// Round-trips the kernel dev encoding `(major << 20) | minor` through
@@ -191,5 +220,16 @@ mod tests {
             "attach_path was {:?}",
             resolved.attach_path
         );
+        // The canonical name must actually resolve. A zero-padded range yields
+        // an ENOENT path (a failure); a restricted map_files yields
+        // PermissionDenied (tolerated).
+        match std::fs::read_link(&resolved.attach_path) {
+            Ok(_) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {}
+            Err(e) => panic!(
+                "map_files path {:?} did not resolve: {e}",
+                resolved.attach_path
+            ),
+        }
     }
 }
