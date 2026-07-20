@@ -11,7 +11,7 @@ use std::sync::mpsc::{self, RecvTimeoutError};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
-use super::proc_fs::{resolve_mapping, wait_all_stopped};
+use super::proc_fs::{Resolution, resolve_mapping, wait_all_stopped};
 
 const STOP_DEADLINE: Duration = Duration::from_secs(1);
 const POLL_INTERVAL_MS: u64 = 10;
@@ -203,11 +203,21 @@ impl Worker {
     }
 
     /// Returns `Ok(true)` when the inode should be marked known (attached, or
-    /// definitively not an allocator), `Ok(false)` when the mapping vanished
-    /// (retry later). An attach failure is a hard error (fail-closed).
+    /// definitively not an allocator), `Ok(false)` when the process exited
+    /// before it could be classified. An unresolved mapping on a live process
+    /// is a hard error (fail-closed): the watcher fires once per inode, so
+    /// there is no retry and a silent miss would drop allocator coverage.
     fn handle_request(&self, req: &AttachRequest) -> Result<bool> {
-        let Some(mapping) = resolve_mapping(req.pid, req.dev, req.ino) else {
-            return Ok(false);
+        let mapping = match resolve_mapping(req.pid, req.dev, req.ino) {
+            Resolution::Resolved(mapping) => mapping,
+            Resolution::ProcessGone => return Ok(false),
+            Resolution::Unresolved => bail!(
+                "watcher mapping dev={} ino={} not found in stopped pid {}'s maps; \
+                 allocator coverage cannot be guaranteed (inode-namespace mismatch, e.g. overlayfs?)",
+                req.dev,
+                req.ino,
+                req.pid
+            ),
         };
 
         let Ok(lib) = AllocatorLib::from_path_static(&mapping.attach_path) else {

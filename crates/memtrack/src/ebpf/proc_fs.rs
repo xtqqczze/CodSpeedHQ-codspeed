@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 /// A mapping resolved from `/proc/<pid>/maps` back to an attachable path.
+#[derive(Debug)]
 pub(super) struct ResolvedMapping {
     /// `/proc/<pid>/map_files/<start>-<end>` — resolves uniformly for deleted
     /// files and requires root (which memtrack already has for uprobes).
@@ -81,15 +82,34 @@ fn task_state(stat: &str) -> Option<char> {
     stat[idx + 1..].trim_start().chars().next()
 }
 
+/// The outcome of resolving a watcher `(dev, ino)` against `/proc/<pid>/maps`.
+#[derive(Debug)]
+pub(super) enum Resolution {
+    /// A matching file-backed mapping was found.
+    Resolved(ResolvedMapping),
+    /// `/proc/<pid>/maps` is gone: the process exited before it could be
+    /// classified. Nothing to attach.
+    ProcessGone,
+    /// maps was read but no row matches the watcher's `(dev, ino)`. The process
+    /// is stopped with the mapping necessarily present (the SIGSTOP lands on the
+    /// mmap syscall's return), so an absent row is a real coverage gap — e.g. an
+    /// inode-namespace mismatch on overlayfs — not a benign retry.
+    Unresolved,
+}
+
 /// Resolve the `(dev, ino)` reported by the watcher to an attachable mapping.
 ///
 /// `dev` is the kernel `s_dev` encoding `(major << 20) | minor`; the maps dev
 /// column prints `MAJOR:MINOR` in lowercase hex (`major = dev >> 20`,
-/// `minor = dev & 0xFFFFF`). Returns `None` if no row matches (the mmap failed
-/// after the LSM hook, or the process exited) — the caller retries on the next
-/// sighting.
-pub(super) fn resolve_mapping(pid: u32, dev: u64, ino: u64) -> Option<ResolvedMapping> {
-    let maps = std::fs::read_to_string(format!("/proc/{pid}/maps")).ok()?;
+/// `minor = dev & 0xFFFFF`).
+pub(super) fn resolve_mapping(pid: u32, dev: u64, ino: u64) -> Resolution {
+    let maps = match std::fs::read_to_string(format!("/proc/{pid}/maps")) {
+        Ok(maps) => maps,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Resolution::ProcessGone,
+        // A non-NotFound read error means coverage cannot be verified; fail
+        // closed rather than silently continuing.
+        Err(_) => return Resolution::Unresolved,
+    };
     let want_major = (dev >> 20) as u32;
     let want_minor = (dev & 0xFFFFF) as u32;
 
@@ -114,14 +134,16 @@ pub(super) fn resolve_mapping(pid: u32, dev: u64, ino: u64) -> Option<ResolvedMa
         }
 
         let display = fields.next().unwrap_or("<anonymous>").to_string();
-        let name = map_files_name(range)?;
-        return Some(ResolvedMapping {
+        let Some(name) = map_files_name(range) else {
+            return Resolution::Unresolved;
+        };
+        return Resolution::Resolved(ResolvedMapping {
             attach_path: PathBuf::from(format!("/proc/{pid}/map_files/{name}")),
             display,
         });
     }
 
-    None
+    Resolution::Unresolved
 }
 
 /// Re-emit a `/proc/<pid>/maps` range column as a `map_files` dirent name.
@@ -211,7 +233,10 @@ mod tests {
             return;
         };
 
-        let resolved = resolve_mapping(pid, s_dev, ino).expect("mapping should resolve");
+        let resolved = match resolve_mapping(pid, s_dev, ino) {
+            Resolution::Resolved(m) => m,
+            other => panic!("mapping should resolve, got {other:?}"),
+        };
         assert_eq!(resolved.display, path);
         assert!(
             resolved
@@ -231,5 +256,25 @@ mod tests {
                 resolved.attach_path
             ),
         }
+    }
+
+    #[test]
+    fn resolve_mapping_unresolved_for_wrong_inode_on_live_process() {
+        // Our own maps is readable (process alive), but no row carries this
+        // bogus (dev, ino), so coverage cannot be confirmed: fail closed.
+        let pid = std::process::id();
+        assert!(matches!(
+            resolve_mapping(pid, 0, u64::MAX),
+            Resolution::Unresolved
+        ));
+    }
+
+    #[test]
+    fn resolve_mapping_process_gone_for_absent_pid() {
+        // A pid with no /proc entry is a benign, non-fatal miss.
+        assert!(matches!(
+            resolve_mapping(u32::MAX, 0, 1),
+            Resolution::ProcessGone
+        ));
     }
 }
