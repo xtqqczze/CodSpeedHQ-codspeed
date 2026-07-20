@@ -107,6 +107,18 @@ impl AttachWorker {
     }
 }
 
+/// Joining the worker on drop releases its `MemtrackBpf` clone so the probe
+/// links detach promptly; otherwise the thread keeps spinning on its recv loop
+/// and the links fall back to a slow serial close at process exit.
+impl Drop for AttachWorker {
+    fn drop(&mut self) {
+        self.shutdown.store(true, Ordering::SeqCst);
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.join();
+        }
+    }
+}
+
 struct Worker {
     poller: RingBufferPoller,
     rx: mpsc::Receiver<AttachRequest>,
