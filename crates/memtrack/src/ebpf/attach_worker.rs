@@ -249,7 +249,7 @@ impl Worker {
             );
         }
 
-        info!(
+        debug!(
             "on-demand attached {} probes to {}",
             kind.name(),
             mapping.display
