@@ -30,8 +30,9 @@ static __always_inline int is_tracked(__u32 pid) {
 static __always_inline int is_enabled(void) {
     __u32 key = 0;
     __u8* enabled = bpf_map_lookup_elem(&tracking_enabled, &key);
+    /* ARRAY-map lookups can't fail for a valid index; fail closed if one ever does. */
     if (!enabled) {
-        return 1;
+        return 0;
     }
     return *enabled;
 }
